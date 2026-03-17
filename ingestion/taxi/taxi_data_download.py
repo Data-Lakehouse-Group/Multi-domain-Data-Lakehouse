@@ -14,7 +14,6 @@ Output:
     data/raw/taxi/yellow_tripdata_YYYY-MM.parquet
 """
 
-import os
 import calendar
 import argparse
 import requests

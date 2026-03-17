@@ -1,1 +1,4 @@
-/data
+data/
+minio-data/
+*.parquet
+*.delta
