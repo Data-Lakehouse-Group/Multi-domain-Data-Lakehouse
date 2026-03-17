@@ -26,6 +26,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 from deltalake import DeltaTable, write_deltalake
+from deltalake.exceptions import TableNotFoundError
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -43,7 +44,6 @@ STORAGE_OPTIONS = {
     "allow_http"         : "true",          # Required for non-HTTPS MinIO
     "aws_s3_allow_unsafe_rename": "true",   # Required for Delta Lake on MinIO
 }
-
 # ---------------------------------------------------------------------------
 # Helper Functions
 # ---------------------------------------------------------------------------
@@ -51,18 +51,24 @@ STORAGE_OPTIONS = {
 def build_source_path(year: int, month: int) -> Path:
     return INPUT_DIR / f"yellow_tripdata_{year}-{month:02d}.parquet"
 
-def add_audit_columns(table: pa.Table, source_file: str) -> pa.Table:
+def add_audit_columns(table: pa.Table, source_file: str, year : int, month: int) -> pa.Table:
     num_rows = table.num_rows
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
  
-    ingested_at_col = pa.array([now] * num_rows, type=pa.string())
-    source_file_col = pa.array([source_file] * num_rows, type=pa.string())
- 
-    table = table.append_column("ingested_at", ingested_at_col)
-    table = table.append_column("source_file", source_file_col)
- 
-    return table
+    return (
+        table
+        .append_column("ingested_at",  pa.array([now] * num_rows, type=pa.timestamp("us", tz="UTC")))
+        .append_column("source_file",  pa.array([source_file] * num_rows, type=pa.string()))
+        .append_column("source_year",  pa.array([year] * num_rows, type=pa.int16()))
+        .append_column("source_month", pa.array([month] * num_rows, type=pa.int8()))
+    )
 
+def table_exists() -> bool:
+    try:
+        DeltaTable(DELTA_TABLE_URI, storage_options=STORAGE_OPTIONS)
+        return True
+    except TableNotFoundError:
+        return False
 # ---------------------------------------------------------------------------
 # ENTRYPOINT
 # ---------------------------------------------------------------------------
@@ -106,21 +112,27 @@ def main():
             print(f"Rows read: {row_count:,}")
  
             # Add audit columns before writing, this will be used for time travel queries
-            taxi_data = add_audit_columns(taxi_data, source_path.name)
+            taxi_data = add_audit_columns(taxi_data, source_path.name, year, month)
 
-            #Check if the table was already ingested and set write mode accordingly
-            try:
-                DeltaTable(DELTA_TABLE_URI, storage_options=STORAGE_OPTIONS)
-                writing_mode = "append"
-            except:
-                writing_mode = "overwrite"
 
-            write_deltalake(
-                DELTA_TABLE_URI,
-                taxi_data,
-                mode = writing_mode,
-                storage_options= STORAGE_OPTIONS,
-            )
+            if table_exists():
+                write_deltalake(
+                    DELTA_TABLE_URI,
+                    taxi_data,
+                    mode = 'overwrite',
+                    predicate=f"source_year = {year} AND source_month = {month}",
+                    schema_mode="merge", 
+                    storage_options= STORAGE_OPTIONS,
+                )
+            else:
+                write_deltalake(
+                    DELTA_TABLE_URI,
+                    taxi_data,
+                    mode = 'overwrite',
+                    partition_by=["source_year", "source_month"],
+                    schema_mode="overwrite",
+                    storage_options= STORAGE_OPTIONS,
+                )
 
             print(f"Successfully ingested {row_count:,} rows for {month_name} {year} NYC Taxi Dataset \n")
         except Exception as e:
