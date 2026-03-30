@@ -21,7 +21,7 @@ import argparse
 from tqdm import tqdm
 import requests
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -35,19 +35,21 @@ CHUNK_SIZE = 8192   # bytes — streams download so large files don't fill RAM
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def build_download_url(target_date: date, hour: int) -> str:
+def build_download_url(target_date: datetime) -> str:
     year = target_date.strftime("%Y")
     month = target_date.strftime("%m")   
     day = target_date.strftime("%d")
-    return f"{BASE_URL}/{str(year)}-{str(month)}-{str(day)}-{str(hour)}.json.gz"
+    hour = target_date.strftime("%H")
+    return f"{BASE_URL}/{str(year)}-{str(month)}-{str(day)}-{int(hour)}.json.gz"
 
-def build_destination_path(target_date: date, hour: int) -> Path:
+def build_destination_path(target_date: datetime) -> Path:
     year = target_date.strftime("%Y")
     month = target_date.strftime("%m")   
     day = target_date.strftime("%d")
-    return OUTPUT_DIR / f"{str(year)}-{str(month)}-{str(day)}-{str(hour)}.json.gz"
+    hour = target_date.strftime("%H")
+    return OUTPUT_DIR / f"{str(year)}-{str(month)}-{str(day)}-{int(hour)}.json.gz"
 
-def parse_date(date_str: str) -> datetime:
+def parse_date_hour(date_str: str) -> datetime:
     dt = datetime.strptime(date_str, "%Y-%m-%d-%H")
     return dt
 
@@ -66,36 +68,28 @@ def main():
 
     # Build the date hour range -------------------------------------------------------
     if args.date_hour_start and args.date_hour_end:
-        date_hour_start = parse_date(args.date_hour_start)
-        date_hour_end = parse_date(args.date_hour_end)
+        date_hour_start = parse_date_hour(args.date_hour_start)
+        date_hour_end = parse_date_hour(args.date_hour_end)
         
-        if date_hour_start.date() > date_hour_end.date():
-            print(f"ERROR: Start date is not the same ({date_hour_start.date()}) as end date  ({date_hour_end.date()})")
-            exit(1)
-        elif date_hour_start > date_hour_end:
+        if date_hour_start > date_hour_end:
             print(f"ERROR: date-hour-start ({args.date_hour_start}) is after date-hour-end ({args.date_hour_end})")
             exit(1)
  
-        date = date_hour_start.date()
-        start_hour = date_hour_start.strftime("%H")
-        end_hour = date_hour_end.strftime("%H")
-        hours = range(int(start_hour), int(end_hour)+1)
+        datetimes = [date_hour_start + timedelta(hours=i) 
+                        for i in range(int((date_hour_end - date_hour_start).total_seconds() // 3600) + 1)]
     else:
-        date_hour = parse_date(args.date_hour)
-        date = date_hour.date()
-        hour = date_hour.strftime("%H")
-        hours = range(int(hour), int(hour)+1)
+        datetimes = [args.date_hour]
 
     total_file_size = 0
-    total_files     = len(hours)
+    total_files     = len(datetimes)
 
     print(f"Preparing to download {total_files} hourly file.\n")
 
-    for hour in hours:
-        url         = build_download_url(date, hour)
-        destination = build_destination_path(date, hour)
+    for datetime in datetimes:
+        url         = build_download_url(datetime)
+        destination = build_destination_path(datetime)
 
-        print(f"  Downloading {date} hour={hour:02d} ...", end=" ", flush=True)
+        print(f"  Downloading {datetime} ...", end=" ", flush=True)
         try:
             response = requests.get(url, stream=True)
             response.raise_for_status()
