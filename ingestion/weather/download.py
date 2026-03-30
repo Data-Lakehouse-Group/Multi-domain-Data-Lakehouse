@@ -9,9 +9,9 @@ Data source: https://www.ncei.noaa.gov/data/global-summary-of-the-day/archive/
 Each archive contains one CSV per weather station for the given year.
 
 Usage:
-    python weather_data_download.py                        # Downloads 2023 by default
-    python weather_data_download.py --year 2022            # Downloads specific year
-    python weather_data_download.py --year-start 2020 --year-end 2023  # Downloads a range
+    python ingestion/weather/download.py                                    # Downloads 2023 by default
+    python ingestion/weather/download.py --year 2022                        # Downloads specific year
+    python ingestion/weather/download.py --year-start 2020 --year-end 2023  # Downloads a range
 
 Output:
     data/raw/weather/YYYY.tar.gz
@@ -19,6 +19,7 @@ Output:
 
 import argparse
 import requests
+from tqdm import tqdm
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -74,10 +75,14 @@ def main():
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
+            total_size = int(response.headers.get('content-length', 0))
+
             with open(destination, "wb") as file:
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    if chunk:
-                        file.write(chunk)
+                with tqdm(total=total_size, unit='B', unit_scale=True, desc=destination.name) as bar:
+                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                        if chunk:
+                            file.write(chunk)
+                            bar.update(len(chunk))
 
             file_size_mb = destination.stat().st_size / (1024 * 1024)
             total_file_size += file_size_mb

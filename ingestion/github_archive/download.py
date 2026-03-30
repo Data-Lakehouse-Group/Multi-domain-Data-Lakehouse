@@ -10,16 +10,15 @@ IssuesEvent, etc.) and is already gzip-compressed — no extra compression step 
 WARNING: These datasets are large and reccomended to only use hour ranges for one day
 
 Usage:
-    python github_archive_download.py                                                               # Default Downloads all of 2023-02-01-1, Hour 1 of 2nd Feb 2023
-    python github_archive_download.py --date-hour 2024-01-01-2                                      # Downloads all of 2023-02-01-2, Hour 1 of 2nd Feb 2023
-    python github_archive_download.py --date-hour-start 2024-01-01-1 --date-hour-end 2024-01-01-2   # Hour range for same day
-    python github_archive_download.py --date 2024-03-15                                             # Downloads entire day
-
+    python ingestion/github_archive/download.py                                                               # Default Downloads all of 2023-02-01-1, Hour 1 of 2nd Feb 2023
+    python ingestion/github_archive/download.py --date-hour 2024-01-01-2                                      # Downloads all of 2023-02-01-2, Hour 1 of 2nd Feb 2023
+    python ingestion/github_archive/download.py --date-hour-start 2024-01-01-1 --date-hour-end 2024-01-01-2   # Hour range for same day
 Output:
     data/raw/github/YYYY-MM-DD-H.json.gz   (one file per hour)
 """
 
 import argparse
+from tqdm import tqdm
 import requests
 from pathlib import Path
 from datetime import datetime, date
@@ -29,9 +28,8 @@ from datetime import datetime, date
 # ---------------------------------------------------------------------------
 
 BASE_URL   = "https://data.gharchive.org"
-OUTPUT_DIR = Path("data/raw/github")
+OUTPUT_DIR = Path("data/raw/github_archive")
 CHUNK_SIZE = 8192   # bytes — streams download so large files don't fill RAM
-HOURS      = range(0, 24)
 
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -39,15 +37,15 @@ HOURS      = range(0, 24)
 
 def build_download_url(target_date: date, hour: int) -> str:
     year = target_date.strftime("%Y")
-    month = target_date.strftime("%M")   
-    day = target_date.strftime("%D")
-    return f"{BASE_URL}/{year}-{month}-{day}-{hour}.json.gz"
+    month = target_date.strftime("%m")   
+    day = target_date.strftime("%d")
+    return f"{BASE_URL}/{str(year)}-{str(month)}-{str(day)}-{str(hour)}.json.gz"
 
 def build_destination_path(target_date: date, hour: int) -> Path:
     year = target_date.strftime("%Y")
-    month = target_date.strftime("%M")   
-    day = target_date.strftime("%D")
-    return OUTPUT_DIR / f"{year}-{month}-{day}-{hour}.json.gz"
+    month = target_date.strftime("%m")   
+    day = target_date.strftime("%d")
+    return OUTPUT_DIR / f"{str(year)}-{str(month)}-{str(day)}-{str(hour)}.json.gz"
 
 def parse_date(date_str: str) -> datetime:
     dt = datetime.strptime(date_str, "%Y-%m-%d-%H")
@@ -59,7 +57,7 @@ def parse_date(date_str: str) -> datetime:
 
 def main():
     parser = argparse.ArgumentParser(description="Download GH Archive hourly JSON.GZ files")
-    parser.add_argument("--date-hour",       type=str, default='2024-01-01-1', help="Single hour for day  (YYYY-MM-DD-HR)")
+    parser.add_argument("--date-hour",       type=str, default='2023-02-01-1', help="Single hour for day  (YYYY-MM-DD-HR)")
     parser.add_argument("--date-hour-start", type=str, default=None, help="Start of date hour range (YYYY-MM-DD-HR)")
     parser.add_argument("--date-hour-end",   type=str, default=None, help="End of date hour range   (YYYY-MM-DD-HR)")
     args = parser.parse_args()
@@ -91,22 +89,25 @@ def main():
     total_file_size = 0
     total_files     = len(hours)
 
-    print(f"Preparing to download {total_files} hourly files.\n")
+    print(f"Preparing to download {total_files} hourly file.\n")
 
     for hour in hours:
         url         = build_download_url(date, hour)
         destination = build_destination_path(date, hour)
 
         print(f"  Downloading {date} hour={hour:02d} ...", end=" ", flush=True)
-
         try:
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
+            total_size = int(response.headers.get('content-length', 0))
+
             with open(destination, "wb") as file:
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    if chunk:
-                        file.write(chunk)
+                with tqdm(total=total_size, unit='B', unit_scale=True, desc=destination.name) as bar:
+                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                        if chunk:
+                            file.write(chunk)
+                            bar.update(len(chunk))
 
             file_size_mb = destination.stat().st_size / (1024 * 1024)
             total_file_size += file_size_mb

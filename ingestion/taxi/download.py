@@ -5,10 +5,10 @@ Downloads raw Parquet files from the TLC website and saves them
 to a local staging directory before Bronze ingestion.
  
 Usage:
-    python taxi_data_download.py                    # Downloads 2023 full year by default
-    python taxi_data_download.py --year 2022        # Downloads specific year
-    python taxi_data_download.py --year 2023 --month-start 1 --month-end 1   # Downloads January only
-    python taxi_data_download.py --year 2023 --month-start 1 --month-end 5   # Downloads January to May
+    python ingestion/taxi/download.py                    # Downloads 2023 full year by default
+    python ingestion/taxi/download.py --year 2022        # Downloads specific year
+    python ingestion/taxi/download.py --year 2023 --month-start 1 --month-end 1   # Downloads January only
+    python ingestion/taxi/download.py --year 2023 --month-start 1 --month-end 5   # Downloads January to May
  
 Output:
     data/raw/taxi/yellow_tripdata_YYYY-MM.parquet
@@ -17,6 +17,7 @@ Output:
 import calendar
 import argparse
 import requests
+from tqdm import tqdm
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -81,10 +82,14 @@ def main():
             response.raise_for_status() # Check if request was successful
 
             #Open the file to download the data to
+            total_size = int(response.headers.get('content-length', 0))
+
             with open(destination, 'wb') as file:
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    if chunk:
-                        file.write(chunk)
+                with tqdm(total=total_size, unit='B', unit_scale=True, desc=destination.name) as bar:
+                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                        if chunk:
+                            file.write(chunk)
+                            bar.update(len(chunk))
 
             file_size_mb = destination.stat().st_size / (1024 * 1024)
             total_file_size += file_size_mb
