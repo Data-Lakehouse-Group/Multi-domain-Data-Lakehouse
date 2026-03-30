@@ -11,10 +11,10 @@ Input:  data/raw/taxi/yellow_tripdata_{year}-{month}.parquet
 Output: s3://bronze/taxi/yellow_tripdata/ (Delta table in MinIO)
  
 Usage:
-    python download.py                    # Ingests 2023 full year by default
-    python download.py --year 2022        # Ingests specific year
-    python download.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023
-    python download.py --year 2023 --month-start 1 --month-end 5   # Ingests January to May for 2023
+    python taxi_ingestion.py                    # Ingests 2023 full year by default
+    python taxi_ingestion.py --year 2022        # Ingests specific year
+    python taxi_ingestion.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023
+    python taxi_ingestion.py --year 2023 --month-start 1 --month-end 5   # Ingests January to May for 2023
 """
 
 
@@ -101,7 +101,7 @@ def main():
         #Check if the files have already been downloaded before being ingested into minio
         if not source_path.exists():
             print(f"  ERROR: Source file not found: {source_path}")
-            print(f"  Run download.py first for {year}-{month:02d}")
+            print(f"  Run download.py first for {year}-{month:02d} NYC Taxi Data \n")
             continue
 
         print(f"\nBeginning ingestion of {month_name} {year} NYC taxi data")

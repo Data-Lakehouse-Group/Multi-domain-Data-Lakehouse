@@ -5,10 +5,10 @@ Downloads raw Parquet files from the TLC website and saves them
 to a local staging directory before Bronze ingestion.
  
 Usage:
-    python download.py                    # Downloads 2023 full year by default
-    python download.py --year 2022        # Downloads specific year
-    python download.py --year 2023 --month-start 1 --month-end 1   # Downloads January only
-    python download.py --year 2023 --month-start 1 --month-end 5   # Downloads January to May
+    python taxi_data_download.py                    # Downloads 2023 full year by default
+    python taxi_data_download.py --year 2022        # Downloads specific year
+    python taxi_data_download.py --year 2023 --month-start 1 --month-end 1   # Downloads January only
+    python taxi_data_download.py --year 2023 --month-start 1 --month-end 5   # Downloads January to May
  
 Output:
     data/raw/taxi/yellow_tripdata_YYYY-MM.parquet
