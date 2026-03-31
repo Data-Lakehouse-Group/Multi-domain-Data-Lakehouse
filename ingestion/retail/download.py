@@ -39,6 +39,13 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 BASE_URL = "yasserh/instacart-online-grocery-basket-analysis-dataset"
 OUTPUT_DIR  = Path("data/raw/retail")
 
+KEEP_FILES = {
+    "order_products__prior.csv",
+    "products.csv",
+    "aisles.csv",
+    "departments.csv",
+}
+
 # ---------------------------------------------------------------------------
 # Helper Functions
 # ---------------------------------------------------------------------------
@@ -73,10 +80,20 @@ def main():
             quiet = False
         )
 
+        #Before removing unneeded files
         total_size_mb = sum(f.stat().st_size for f in OUTPUT_DIR.iterdir() if f.is_file()) / (1024 * 1024)
         print(f"Dataset download completed with files totalling size: ({total_size_mb:.1f} MB)")
         print(f"The dataset is stored at {OUTPUT_DIR}")
- 
+
+        for f in OUTPUT_DIR.iterdir():
+            if f.is_file() and f.name not in KEEP_FILES:
+                f.unlink()
+                print(f"  Removed: {f.name}")
+
+        #After removing unneeded files
+        total_size_mb = sum(f.stat().st_size for f in OUTPUT_DIR.iterdir() if f.is_file()) / (1024 * 1024)
+        print(f"New dataset file is: ({total_size_mb:.1f} MB)")
+
     except Exception as e:
         print(f"An error occurred while downloading dataset from {BASE_URL}: {e}\n")
         print(f"Clearing the output directoy {OUTPUT_DIR} to remove any partial files...")
