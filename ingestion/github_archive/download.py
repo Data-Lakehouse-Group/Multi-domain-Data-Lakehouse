@@ -12,7 +12,7 @@ WARNING: These datasets are large and reccomended to only use hour ranges for on
 Usage:
     python ingestion/github_archive/download.py                                                               # Default Downloads all of 2023-02-01-1, Hour 1 of 2nd Feb 2023
     python ingestion/github_archive/download.py --date-hour 2024-01-01-2                                      # Downloads all of 2023-02-01-2, Hour 1 of 2nd Feb 2023
-    python ingestion/github_archive/download.py --date-hour-start 2024-01-01-1 --date-hour-end 2024-01-01-2   # Hour range for same day
+    python ingestion/github_archive/download.py --date-hour-start 2024-01-01-1 --date-hour-end 2024-01-01-2   # Range of hours to ingest between days
 Output:
     data/raw/github/YYYY-MM-DD-H.json.gz   (one file per hour)
 """
@@ -36,18 +36,10 @@ CHUNK_SIZE = 8192   # bytes — streams download so large files don't fill RAM
 # ---------------------------------------------------------------------------
 
 def build_download_url(target_date: datetime) -> str:
-    year = target_date.strftime("%Y")
-    month = target_date.strftime("%m")   
-    day = target_date.strftime("%d")
-    hour = target_date.strftime("%H")
-    return f"{BASE_URL}/{str(year)}-{str(month)}-{str(day)}-{int(hour)}.json.gz"
+    return f"{BASE_URL}/{target_date.year}-{target_date.month:02d}-{target_date.day:02d}-{target_date.hour}.json.gz"
 
 def build_destination_path(target_date: datetime) -> Path:
-    year = target_date.strftime("%Y")
-    month = target_date.strftime("%m")   
-    day = target_date.strftime("%d")
-    hour = target_date.strftime("%H")
-    return OUTPUT_DIR / f"{str(year)}-{str(month)}-{str(day)}-{int(hour)}.json.gz"
+    return OUTPUT_DIR / f"{target_date.year}-{target_date.month:02d}-{target_date.day:02d}-{target_date.hour}.json.gz"
 
 def parse_date_hour(date_str: str) -> datetime:
     dt = datetime.strptime(date_str, "%Y-%m-%d-%H")
@@ -78,18 +70,18 @@ def main():
         datetimes = [date_hour_start + timedelta(hours=i) 
                         for i in range(int((date_hour_end - date_hour_start).total_seconds() // 3600) + 1)]
     else:
-        datetimes = [args.date_hour]
+        datetimes = [parse_date_hour(args.date_hour)]
 
     total_file_size = 0
     total_files     = len(datetimes)
 
     print(f"Preparing to download {total_files} hourly file.\n")
 
-    for datetime in datetimes:
-        url         = build_download_url(datetime)
-        destination = build_destination_path(datetime)
+    for dt in datetimes:
+        url         = build_download_url(dt)
+        destination = build_destination_path(dt)
 
-        print(f"  Downloading {datetime} ...", end=" ", flush=True)
+        print(f"  Downloading {dt} ...", end=" ", flush=True)
         try:
             response = requests.get(url, stream=True)
             response.raise_for_status()

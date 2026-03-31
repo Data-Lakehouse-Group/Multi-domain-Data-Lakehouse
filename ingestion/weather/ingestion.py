@@ -1,10 +1,11 @@
 """
 NOAA Weather Data Bronze Ingestion
 =========================
-Reads raw Parquet files from local staging and writes them into
-a single Delta table in MinIO as-is. No transformations applied.
- 
-Each month is appended as a new batch, creating a new Delta version
+Extracts the csv files from each year tar.gz file and read into seperate
+pyarrow tables which are then concatenated into one ensuring columns are
+casted to the right types if they change
+
+Each year is appended as a new batch, creating a new Delta version
 that can be queried independently via time travel.
  
 Input:  data/raw/weather/{year}.tar.gz
