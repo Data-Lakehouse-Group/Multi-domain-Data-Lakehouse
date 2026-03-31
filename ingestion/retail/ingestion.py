@@ -116,10 +116,14 @@ def main():
     print("\nReading order_products__prior...")
     try:
         order_products_data = read_csv("order_products__prior")
-        print(f"  Rows read: {order_products_data.num_rows:,}")
+        row_count = order_products_data.num_rows
+        print(f"  Rows read: {row_count:,}")
     except FileNotFoundError as e:
         print(f"  ERROR: {e}")
         return
+    
+    print("  Adding audit columns...")
+    order_products_data = add_audit_columns(order_products_data, "order_products__prior.csv")
 
     #Attaching lookup tables
     con = duckdb.connect()
@@ -141,11 +145,7 @@ def main():
         JOIN d ON p.department_id = d.department_id
     """).arrow()
 
-
-    print("  Adding audit columns...")
-    order_products_data = add_audit_columns(order_products_data, "order_products__prior.csv")
-
-    print(f"Writing to Delta Lake at {ORDER_PRODUCTS_URI}")
+    print(f"Writing to Delta Lake at {ORDER_PRODUCTS_URI}...")
     try:
         if table_exists(ORDER_PRODUCTS_URI):
             #This is a static dataset so the predicate is not needed for rewriting and partitioning
@@ -165,9 +165,9 @@ def main():
                 schema_mode     = "overwrite",
                 storage_options = STORAGE_OPTIONS,
             )
-        print(f"  Successfully written {order_products_data.num_rows:,} rows.")
+        print(f"Successfully ingested {row_count:,} row for Instacart Retail Dataset  ")
     except Exception as e:
-        print(f"  ERROR writing enriched table: {e}")
+        print(f"  ERROR writing order_products table: {e}")
 
 
 if __name__ == "__main__":
