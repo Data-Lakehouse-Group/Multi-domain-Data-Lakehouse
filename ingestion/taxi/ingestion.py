@@ -11,10 +11,10 @@ Input:  data/raw/taxi/yellow_tripdata_{year}-{month}.parquet
 Output: s3://bronze/taxi/yellow_tripdata/ (Delta table in MinIO)
  
 Usage:
-    python taxi_ingestion.py                    # Ingests 2023 full year by default
-    python taxi_ingestion.py --year 2022        # Ingests specific year
-    python taxi_ingestion.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023
-    python taxi_ingestion.py --year 2023 --month-start 1 --month-end 5   # Ingests January to May for 2023
+    python ingestion/taxi/ingestion.py                    # Ingests 2023 full year by default
+    python ingestion/taxi/ingestion.py --year 2022        # Ingests specific year
+    python ingestion/taxi/ingestion.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023
+    python ingestion/taxi/ingestion.py --year 2023 --month-start 1 --month-end 5   # Ingests January to May for 2023
 """
 
 
