@@ -39,7 +39,6 @@ models:
 
     gold:
       +materialized: external
-      +format: parquet
       taxi:
         +location_root: "s3://gold/taxi"
         +tags: ["taxi", "gold"]

@@ -48,7 +48,7 @@ SELECT
     COUNT(*) FILTER (WHERE payment_type = 2) AS cash_trips,
     COUNT(*) FILTER (WHERE payment_type = 3) AS no_charge_trips
 
-FROM {{ ref('taxi_data_with_zone') }}
+FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY 
     pickup_zone,
     dropoff_zone

@@ -1,5 +1,3 @@
 packages:
   - package: dbt-labs/dbt_utils
     version: [">=1.0.0"]
-  - package: evidence-dev/dbt_duckdb
-    version: [">=1.0.0"]

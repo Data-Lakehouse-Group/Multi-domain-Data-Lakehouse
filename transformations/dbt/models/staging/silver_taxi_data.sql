@@ -11,7 +11,6 @@ SELECT
     -- Trip details
     passenger_count,
     trip_distance,
-    trip_duration_minutes,
     RatecodeID                  AS rate_code_id,
     store_and_fwd_flag,
 
@@ -25,7 +24,7 @@ SELECT
     improvement_surcharge,
     total_amount,
     congestion_surcharge,
-    airport_fee,,
+    airport_fee,
 
     ---Derived Silver Columns---
     trip_duration_minutes,
@@ -38,8 +37,8 @@ SELECT
     is_weekend,
 
     ---Partioned On Columns---
-    source_year,    AS pickup_year
-    source_month,   AS pickup_month
+    source_year    AS pickup_year,
+    source_month   AS pickup_month,
 
     ---Audit Columns---
     source_file,
