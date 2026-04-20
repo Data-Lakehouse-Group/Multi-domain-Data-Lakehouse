@@ -1,5 +1,9 @@
 data/
 minio-data/
-quality/
+logs/
+quality/reports/
 *.parquet
 *.delta
+transformations/dbt/logs/
+transformations/dbt/dbt_packages/
+transformations/dbt/target/
