@@ -1,0 +1,58 @@
+name: multi_domain_lakehouse
+version: "1.0.0"
+config-version: 2
+
+profile: multi_domain_lakehouse
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  multi_domain_lakehouse:
+    staging:
+      +materialized: view
+      taxi:
+        +materialized: view
+      github_archive:
+        +materialized: view
+      retail:
+        +materialized: view
+      weather:
+        +materialized: view
+
+    intermediate:
+      +materialized: view
+      taxi:
+        +materialized: view
+      github_archive:
+        +materialized: view
+      retail:
+        +materialized: view
+      weather:
+        +materialized: view
+
+    gold:
+      +materialized: external
+      +format: parquet
+      taxi:
+        +location_root: "s3://gold/taxi"
+        +tags: ["taxi", "gold"]
+      github_archive:
+        +location_root: "s3://gold/github_archive"
+        +tags: ["github_archive", "gold"]
+      retail:
+        +location_root: "s3://gold/retail"
+        +tags: ["retail", "gold"]
+      weather:
+        +location_root: "s3://gold/weather"
+        +tags: ["weather", "gold"]
+
+seeds:
+  multi_domain_lakehouse:
+    +schema: seeds

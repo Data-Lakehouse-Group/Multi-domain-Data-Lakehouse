@@ -1,5 +1,5 @@
 data/
 minio-data/
-quality/
+quality/reports/
 *.parquet
 *.delta

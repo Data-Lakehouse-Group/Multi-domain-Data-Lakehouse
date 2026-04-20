@@ -4,6 +4,8 @@ NYC Taxi Silver Transformation
 Reads from the Bronze Delta table, applies cleaning and validation
 rules, derives new columns, and writes to the Silver Delta table.
 
+Also optimizes data types
+
 Records that fail quality checks are dropped and counted.
 No bad data passes through to Silver.
 
@@ -21,7 +23,6 @@ import calendar
 
 import duckdb
 import pyarrow as pa
-import pyarrow.parquet as pq
 from deltalake import DeltaTable, write_deltalake
 
 
@@ -133,10 +134,12 @@ def apply_quality_checks_and_enrich(
         ),
 
         -- Step 2: Pre-compute trip duration so it can be reused in speed calculation
+        --         Along with day_of_week
         with_duration AS (
             SELECT
                 *,
-                DATEDIFF('minute', tpep_pickup_datetime, tpep_dropoff_datetime) AS trip_duration_minutes
+                DATEDIFF('minute', tpep_pickup_datetime, tpep_dropoff_datetime) AS trip_duration_minutes,
+                CAST(DAYOFWEEK(tpep_pickup_datetime)AS UTINYINT) AS pickup_day_of_week
             FROM cleaned
         )
 
@@ -176,12 +179,39 @@ def apply_quality_checks_and_enrich(
             -- Column 2: Hour of pickup for time-of-day analysis
             CAST(HOUR(tpep_pickup_datetime) AS UTINYINT) AS pickup_hour,
 
-            -- Column 3: Day of week as full name for readability
-            DAYNAME(tpep_pickup_datetime) AS pickup_day_of_week,
+            -- Column 3: Audit timestamp for when this silver processing ran
+            CURRENT_TIMESTAMP AS processed_at,
 
-            -- Column 4: Audit timestamp for when this silver processing ran
-            CURRENT_TIMESTAMP             AS processed_at
+            -- Column 4: Payment Method
+            CASE payment_type
+                WHEN 1 THEN 'Credit Card'
+                WHEN 2 THEN 'Cash'
+                WHEN 3 THEN 'No Charge'
+                WHEN 4 THEN 'Dispute'
+                WHEN 5 THEN 'Unknown'
+                WHEN 6 THEN 'Voided'
+            END AS payment_method
 
+            -- Column 5: Day of Week
+            CASE pickup_day_of_week
+                WHEN 1 THEN 'Sunday'
+                WHEN 2 THEN 'Monday'
+                WHEN 3 THEN 'Tuesday'
+                WHEN 4 THEN 'Wednesday'
+                WHEN 5 THEN 'Thursday'
+                WHEN 6 THEN 'Friday'
+                WHEN 7 THEN 'Saturday'
+            END AS day_name,
+
+            -- Column 6: Is Weekend
+            CASE
+                WHEN pickup_day_of_week IN (1, 7) THEN true
+                ELSE false
+            END AS is_weekend
+
+            -- Column 7: Pickup Date
+            DATE(tpep_pickup_datetime) AS pickup_date
+            
         FROM with_duration
 
     """).fetch_arrow_table()
