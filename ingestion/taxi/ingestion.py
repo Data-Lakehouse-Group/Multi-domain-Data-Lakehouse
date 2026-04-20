@@ -33,7 +33,7 @@ from deltalake.exceptions import TableNotFoundError
 # ---------------------------------------------------------------------------
 
 INPUT_DIR       = Path("data/raw/taxi")
-DELTA_TABLE_URI = "s3://bronze/taxi/yellow_tripdata"
+BRONZE_URI = "s3://bronze/taxi/yellow_tripdata"
 
 # MinIO connection
 STORAGE_OPTIONS = {
@@ -63,7 +63,7 @@ def add_audit_columns(table: pa.Table, source_file: str, year : int, month: int)
         .append_column("source_month", pa.array([month] * num_rows, type=pa.int8()))
     )
 
-def table_exists() -> bool:
+def table_exists(DELTA_TABLE_URI: str) -> bool:
     try:
         DeltaTable(DELTA_TABLE_URI, storage_options=STORAGE_OPTIONS)
         return True
@@ -115,9 +115,9 @@ def main():
             taxi_data = add_audit_columns(taxi_data, source_path.name, year, month)
 
 
-            if table_exists():
+            if table_exists(BRONZE_URI):
                 write_deltalake(
-                    DELTA_TABLE_URI,
+                    BRONZE_URI,
                     taxi_data,
                     mode = 'overwrite',
                     predicate=f"source_year = {year} AND source_month = {month}",
@@ -126,7 +126,7 @@ def main():
                 )
             else:
                 write_deltalake(
-                    DELTA_TABLE_URI,
+                    BRONZE_URI,
                     taxi_data,
                     mode = 'overwrite',
                     partition_by=["source_year", "source_month"],
