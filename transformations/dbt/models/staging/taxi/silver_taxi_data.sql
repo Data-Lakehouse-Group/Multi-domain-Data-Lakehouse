@@ -50,10 +50,4 @@ FROM read_parquet(
 )
 -- Apply Partitioning
 WHERE source_year = {{ var('year', 2023) }}
-  AND (
-    {% if var('month', none) is none %}
-        true
-    {% else %}
-        source_month = {{ var('month') }}
-    {% endif %}
-  )
+  AND source_month = {{ var('month', 1) }}

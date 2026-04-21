@@ -196,19 +196,11 @@ def apply_quality_checks_and_enrich(
             END AS payment_method,
 
             -- Column 5: Day of Week
-            CASE pickup_day_of_week
-                WHEN 1 THEN 'Sunday'
-                WHEN 2 THEN 'Monday'
-                WHEN 3 THEN 'Tuesday'
-                WHEN 4 THEN 'Wednesday'
-                WHEN 5 THEN 'Thursday'
-                WHEN 6 THEN 'Friday'
-                WHEN 7 THEN 'Saturday'
-            END AS day_name,
+            DAYNAME(tpep_pickup_datetime) AS day_name,
 
             -- Column 6: Is Weekend
             CASE
-                WHEN pickup_day_of_week IN (1, 7) THEN true
+                WHEN pickup_day_of_week IN (1, 0) THEN true
                 ELSE false
             END AS is_weekend,
 

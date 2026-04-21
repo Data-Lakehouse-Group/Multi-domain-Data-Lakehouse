@@ -4,7 +4,7 @@
     materialized='external',
     location='/tmp/daily_summary.parquet',
     format='parquet',
-    post_hook="COPY (SELECT * FROM read_parquet('/tmp/daily_summary.parquet')) TO 's3://gold/taxi/daily_summary/data.parquet' (FORMAT parquet)"
+    post_hook="COPY (SELECT * FROM read_parquet('/tmp/daily_summary.parquet')) TO 's3://gold/taxi/daily_summary/pickup_year={{ var('year') }}/pickup_month={{ var('month') }}/data.parquet' (FORMAT parquet)"
 ) }}
 
 
