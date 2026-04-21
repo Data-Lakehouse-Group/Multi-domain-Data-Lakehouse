@@ -1,6 +1,7 @@
 data/
 minio-data/
 logs/
+tmp/
 quality/reports/
 *.parquet
 *.delta

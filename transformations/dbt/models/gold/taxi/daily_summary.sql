@@ -1,16 +1,10 @@
 -- Answers: How did each day of the week perform in terms of trips, revenue, and efficiency?
 
-{{ config(
-    materialized='external',
-    location='/tmp/daily_summary.parquet',
-    format='parquet',
-    post_hook="COPY (SELECT * FROM read_parquet('/tmp/daily_summary.parquet')) TO 's3://gold/taxi/daily_summary/pickup_year={{ var('year') }}/pickup_month={{ var('month') }}/data.parquet' (FORMAT parquet)"
-) }}
-
-
 SELECT
     day_name,
     pickup_day_of_week,
+    source_year,
+    source_month,
 
     -- Volume metrics
     COUNT(*)                    AS total_trips,
@@ -51,5 +45,7 @@ SELECT
 FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY
     pickup_day_of_week,
-    day_name
+    day_name,
+    source_year,
+    source_month
 ORDER BY pickup_day_of_week

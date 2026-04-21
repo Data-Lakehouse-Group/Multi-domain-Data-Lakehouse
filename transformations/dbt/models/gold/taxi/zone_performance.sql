@@ -1,17 +1,12 @@
 -- Answers: How well does each pickup and dropoff zone combination perform
 
-{{ config(
-    materialized='external',
-    location='/tmp/zone_performance.parquet',
-    format='parquet',
-    post_hook="COPY (SELECT * FROM read_parquet('/tmp/zone_performance.parquet')) TO 's3://gold/taxi/zone_performance/pickup_year={{ var('year') }}/pickup_month={{ var('month') }}/data.parquet' (FORMAT parquet)"
-) }}
-
 SELECT 
     pickup_zone,
     pickup_service_zone,
     dropoff_borough,
     dropoff_zone,
+    source_year,
+    source_month,
 
     -- Volume metrics
     COUNT(*)                    AS total_trips,
@@ -51,6 +46,8 @@ SELECT
 
 FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY 
+    source_year,
+    source_month,
     pickup_zone,
     pickup_service_zone,
     dropoff_borough,

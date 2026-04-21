@@ -1,16 +1,9 @@
 -- Answers: How did each individual date perform in terms of trips, revenue, and efficiency?
 
-{{ config(
-    materialized='external',
-    location='/tmp/day_of_week_summary.parquet',
-    format='parquet',
-    post_hook="COPY (SELECT * FROM read_parquet('/tmp/day_of_week_summary.parquet')) TO 's3://gold/taxi/day_of_week_summary/pickup_year={{ var('year') }}/pickup_month={{ var('month') }}/data.parquet' (FORMAT parquet)"
-) }}
-
 SELECT
     pickup_date,
-    pickup_year,
-    pickup_month,
+    source_year,
+    source_month,
     pickup_day_of_week,
 
     -- Volume metrics
@@ -52,7 +45,7 @@ SELECT
 FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY
     pickup_date,
-    pickup_year,
-    pickup_month,
+    source_year,
+    source_month,
     pickup_day_of_week
 ORDER BY pickup_date

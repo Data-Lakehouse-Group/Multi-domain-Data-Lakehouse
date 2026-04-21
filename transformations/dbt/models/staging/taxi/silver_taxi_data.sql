@@ -37,8 +37,8 @@ SELECT
     is_weekend,
 
     ---Partioned On Columns---
-    source_year    AS pickup_year,
-    source_month   AS pickup_month,
+    source_year,    
+    source_month,   
 
     ---Audit Columns---
     source_file,

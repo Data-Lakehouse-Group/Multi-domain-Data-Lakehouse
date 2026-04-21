@@ -7,8 +7,9 @@ multi_domain_lakehouse:
   outputs:
     dev:
       type: duckdb
-      path: ":memory:" # DuckDB runs in memory — reads directly from MinIO
+      path: "/tmp/lakehouse.duckdb" # DuckDB runs in memory — reads directly from MinIO
       extensions:
+        - delta
         - httpfs
       settings:
         s3_region: us-east-1
@@ -21,7 +22,7 @@ multi_domain_lakehouse:
 
     docker:
       type: duckdb
-      path: ":memory:"
+      path: "/tmp/lakehouse.duckdb"
       extensions:
         - delta
         - httpfs
