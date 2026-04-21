@@ -167,7 +167,10 @@ def apply_quality_checks_and_enrich(
             RatecodeID,
             source_year,
             source_month,
+            source_file,
+            ingested_at,
             trip_duration_minutes,
+            CAST(pickup_day_of_week AS UTINYINT) AS pickup_day_of_week,
 
             -- Column 1: Trip speed in mph, null if duration is zero to avoid division error
             CASE
@@ -190,7 +193,7 @@ def apply_quality_checks_and_enrich(
                 WHEN 4 THEN 'Dispute'
                 WHEN 5 THEN 'Unknown'
                 WHEN 6 THEN 'Voided'
-            END AS payment_method
+            END AS payment_method,
 
             -- Column 5: Day of Week
             CASE pickup_day_of_week
@@ -207,7 +210,7 @@ def apply_quality_checks_and_enrich(
             CASE
                 WHEN pickup_day_of_week IN (1, 7) THEN true
                 ELSE false
-            END AS is_weekend
+            END AS is_weekend,
 
             -- Column 7: Pickup Date
             DATE(tpep_pickup_datetime) AS pickup_date

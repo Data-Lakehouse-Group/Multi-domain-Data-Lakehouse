@@ -44,7 +44,16 @@ SELECT
     source_file,
     ingested_at     AS bronze_ingested_at,
     processed_at    AS silver_processed_at
-FROM delta_scan('s3://silver/taxi/yellow_tripdata')
+FROM read_parquet(
+    's3://silver/taxi/yellow_tripdata/**/*.parquet',
+    hive_partitioning = true
+)
 -- Apply Partitioning
 WHERE source_year = {{ var('year', 2023) }}
-  AND source_month = {{ var('month', 1) }}
+  AND (
+    {% if var('month', none) is none %}
+        true
+    {% else %}
+        source_month = {{ var('month') }}
+    {% endif %}
+  )

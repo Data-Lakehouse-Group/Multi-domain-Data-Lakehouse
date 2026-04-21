@@ -2,15 +2,14 @@
 
 {{ config(
     materialized='external',
-    location='s3://gold/taxi/daily_summary/',
-    format='parquet'
+    location='/tmp/daily_summary.parquet',
+    format='parquet',
+    post_hook="COPY (SELECT * FROM read_parquet('/tmp/daily_summary.parquet')) TO 's3://gold/taxi/daily_summary/data.parquet' (FORMAT parquet)"
 ) }}
 
 
 SELECT
-    pickup_date,
-    pickup_year,
-    pickup_month,
+    day_name,
     pickup_day_of_week,
 
     -- Volume metrics
@@ -51,5 +50,6 @@ SELECT
 
 FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY
-    pickup_day_of_week
+    pickup_day_of_week,
+    day_name
 ORDER BY pickup_day_of_week

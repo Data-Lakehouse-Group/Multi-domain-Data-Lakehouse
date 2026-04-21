@@ -4,6 +4,7 @@ logs/
 quality/reports/
 *.parquet
 *.delta
+.user.yml
 transformations/dbt/logs/
 transformations/dbt/dbt_packages/
 transformations/dbt/target/

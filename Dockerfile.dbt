@@ -1,0 +1,5 @@
+#Get latest image of dbt
+FROM ghcr.io/dbt-labs/dbt-core:latest 
+
+#Install the duckdb adapter and duckdb
+RUN pip install dbt-duckdb==1.9.1 duckdb==1.1.3

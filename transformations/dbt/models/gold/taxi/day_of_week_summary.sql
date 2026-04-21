@@ -2,8 +2,9 @@
 
 {{ config(
     materialized='external',
-    location='s3://gold/taxi/day_of_week_summary/',
-    format='parquet'
+    location='/tmp/day_of_week_summary.parquet',
+    format='parquet',
+    post_hook="COPY (SELECT * FROM read_parquet('/tmp/day_of_week_summary.parquet')) TO 's3://gold/taxi/day_of_week_summary/data.parquet' (FORMAT parquet)"
 ) }}
 
 SELECT

@@ -2,8 +2,9 @@
 
 {{ config(
     materialized='external',
-    location='s3://gold/taxi/zone_performance/',
-    format='parquet'
+    location='/tmp/zone_performance.parquet',
+    format='parquet',
+    post_hook="COPY (SELECT * FROM read_parquet('/tmp/zone_performance.parquet')) TO 's3://gold/taxi/zone_performance/data.parquet' (FORMAT parquet)"
 ) }}
 
 SELECT 
@@ -51,6 +52,8 @@ SELECT
 FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY 
     pickup_zone,
+    pickup_service_zone,
+    dropoff_borough,
     dropoff_zone
 ORDER BY 
     total_trips DESC
