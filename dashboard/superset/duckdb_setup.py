@@ -2,12 +2,11 @@ import duckdb
 
 con = duckdb.connect("/app/superset_home/lakehouse.duckdb")
 
-con.execute("INSTALL httpfs;")
 con.execute("LOAD httpfs;")
 
 # Create persistent secret — stored inside lakehouse.duckdb permanently
 con.execute("""
-    CREATE OR REPLACE PERSISTENT  SECRET minio_secret (
+    CREATE PERSISTENT SECRET IF NOT EXISTS minio_secret (
         TYPE S3,
         KEY_ID 'minioadmin',
         SECRET 'minioadmin',
