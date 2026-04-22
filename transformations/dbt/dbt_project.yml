@@ -38,7 +38,7 @@ models:
         +tags: ["weather", "intermediate"]
 
     gold:
-      +materialized: view
+      +materialized: table
       taxi:
         +tags: ["taxi", "gold"]
       github_archive:

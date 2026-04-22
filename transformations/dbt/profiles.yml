@@ -7,7 +7,7 @@ multi_domain_lakehouse:
   outputs:
     dev:
       type: duckdb
-      path: "/tmp/lakehouse.duckdb" # DuckDB runs in memory — reads directly from MinIO
+      path: ":memory:" # DuckDB runs in memory — reads directly from MinIO
       extensions:
         - delta
         - httpfs
@@ -22,7 +22,7 @@ multi_domain_lakehouse:
 
     docker:
       type: duckdb
-      path: "/tmp/lakehouse.duckdb"
+      path: "/tmp/lakehouse.duckdb" #This is done only for testing
       extensions:
         - delta
         - httpfs
@@ -34,3 +34,17 @@ multi_domain_lakehouse:
         s3_use_ssl: false
         s3_url_style: path
         s3_uploader_thread_limit: 1
+
+    prod:
+      type: duckdb
+      path: ":memory:"
+      extensions:
+        - delta
+        - httpfs
+      settings:
+        s3_region: us-east-1
+        s3_access_key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
+        s3_secret_access_key: "{{ env_var('MINIO_SECRET_KEY') }}"
+        s3_endpoint: "{{ env_var('MINIO_ENDPOINT') }}"
+        s3_use_ssl: false
+        s3_url_style: path
