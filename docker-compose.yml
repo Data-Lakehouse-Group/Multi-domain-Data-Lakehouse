@@ -4,6 +4,7 @@ networks:
 
 volumes:
   minio_data:
+  superset_home:
 
 services:
   minio:
@@ -70,3 +71,72 @@ services:
     networks:
       - lakehouse
     entrypoint: ["tail", "-f", "/dev/null"]
+
+  # ── Superset init (set up DB and admin user) ────
+  superset-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    container_name: superset-init
+    command: [
+        "bash",
+        "-c",
+        "
+        set -e;
+
+        superset db upgrade;
+
+        superset fab create-admin \
+        --username admin \
+        --firstname Admin \
+        --lastname User \
+        --email admin@gmail.com \
+        --password admin || true;
+
+        superset init;
+
+        echo 'Importing dashboards...';
+
+        shopt -s nullglob;
+        for f in /app/exports/*.zip; do
+        superset import-dashboards -p \"$f\" && echo \"Imported $f\";
+        done;
+
+        echo 'Superset init complete';
+        ",
+      ]
+    environment:
+      SUPERSET_CONFIG_PATH: /app/superset_config.py
+      SUPERSET_SECRET_KEY: supersetSecretKey123
+    volumes:
+      - ./dashboard/superset/superset_config.py:/app/superset_config.py
+      - ./dashboard/exports:/app/exports
+      - superset_home:/app/superset_home
+    networks:
+      - lakehouse
+
+  # ── Superset app ─────────────────────────────────────────────
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    container_name: superset
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_CONFIG_PATH: /app/superset_config.py
+      SUPERSET_SECRET_KEY: supersetSecretKey123
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - ./dashboard/superset/superset_config.py:/app/superset_config.py
+      - ./dashboard/exports:/app/exports
+      - superset_home:/app/superset_home
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - lakehouse
