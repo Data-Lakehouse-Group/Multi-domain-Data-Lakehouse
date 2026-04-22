@@ -18,38 +18,34 @@ models:
     staging:
       +materialized: view
       taxi:
-        +materialized: view
+        +tags: ["taxi", "staging"]
       github_archive:
-        +materialized: view
+        +tags: ["github", "staging"]
       retail:
-        +materialized: view
+        +tags: ["retail", "staging"]
       weather:
-        +materialized: view
+        +tags: ["weather", "staging"]
 
     intermediate:
       +materialized: view
       taxi:
-        +materialized: view
+        +tags: ["taxi", "intermediate"]
       github_archive:
-        +materialized: view
+        +tags: ["github", "intermediate"]
       retail:
-        +materialized: view
+        +tags: ["retail", "intermediate"]
       weather:
-        +materialized: view
+        +tags: ["weather", "intermediate"]
 
     gold:
-      +materialized: external
+      +materialized: table
       taxi:
-        +location_root: "s3://gold/taxi"
         +tags: ["taxi", "gold"]
       github_archive:
-        +location_root: "s3://gold/github_archive"
-        +tags: ["github_archive", "gold"]
+        +tags: ["github", "gold"]
       retail:
-        +location_root: "s3://gold/retail"
         +tags: ["retail", "gold"]
       weather:
-        +location_root: "s3://gold/weather"
         +tags: ["weather", "gold"]
 
 seeds:
