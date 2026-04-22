@@ -111,6 +111,7 @@ services:
     volumes:
       - ./dashboard/superset/superset_config.py:/app/superset_config.py
       - ./dashboard/exports:/app/exports
+      - ./dashboard/superset/duckdb_setup.py:/app/duckdb_setup.py
       - superset_home:/app/superset_home
     networks:
       - lakehouse
@@ -123,6 +124,11 @@ services:
     container_name: superset
     ports:
       - "8088:8088"
+    command: >
+      bash -c "
+        python3 /app/duckdb_setup.py &&
+        /usr/bin/run-server.sh
+      "
     environment:
       SUPERSET_CONFIG_PATH: /app/superset_config.py
       SUPERSET_SECRET_KEY: supersetSecretKey123
@@ -132,6 +138,7 @@ services:
     volumes:
       - ./dashboard/superset/superset_config.py:/app/superset_config.py
       - ./dashboard/exports:/app/exports
+      - ./dashboard/superset/duckdb_setup.py:/app/duckdb_setup.py
       - superset_home:/app/superset_home
     depends_on:
       superset-init:
