@@ -1,0 +1,13 @@
+# superset/Dockerfile
+FROM apache/superset:4.1.1
+
+USER root
+
+# Install DuckDB SQLAlchemy driver + dependencies
+RUN pip install --no-cache-dir \
+    duckdb==0.10.3 \
+    duckdb-engine==0.13.0 \
+    sqlalchemy==1.4.54 \
+    psycopg2-binary
+
+USER superset
