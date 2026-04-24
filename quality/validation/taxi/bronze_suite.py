@@ -203,7 +203,7 @@ def main():
     args = parser.parse_args()
 
     #Make the month range from arguments
-    if args.month_start and args.month_end:
+    if args.month_start is not None and args.month_end is not None:
         if(args.month_start > args.month_end):
             print(f"ERROR: Month start range ({args.month_start}) is greater than month end range({args.month_end})")
             exit(1)

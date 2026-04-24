@@ -29,7 +29,7 @@ import duckdb
 DUCKDB_PATH = os.getenv("DUCKDB_PATH", "./tmp/lakehouse.duckdb")
 
 STORAGE_OPTIONS = {
-    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://localhost:9000"),
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
     "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
     "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
     "allow_http"                : "true",
