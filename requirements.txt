@@ -1,11 +1,12 @@
 requests==2.32.3
 duckdb==1.4.4
-pyarrow== 23.0.0
-tqdm == 4.67.3
+pyarrow==23.0.0
+tqdm==4.67.3
 deltalake==1.5.0
-kaggle == 2.0.0
-great_expectations == 1.15.2
-dbt-core == 1.11.8
-dbt-duckdb ==  1.10.1
-apache-airflow == 3.2.1
-apache-airflow-providers-docker == 4.5.5
+boto3==1.42.95
+kaggle==2.0.0
+great_expectations==1.15.2
+dbt-core==1.11.8
+dbt-duckdb==1.10.1
+apache-airflow==3.2.1
+apache-airflow-providers-docker==4.5.5

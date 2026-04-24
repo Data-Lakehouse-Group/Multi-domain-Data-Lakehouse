@@ -10,7 +10,7 @@ that can be queried independently via time travel.
 Input:  data/raw/taxi/yellow_tripdata_{year}-{month}.parquet
 Output: s3://bronze/taxi/yellow_tripdata/ (Delta table in MinIO)
  
-Usage:
+Usage: (add --debug at the end of each for local testing)
     python ingestion/taxi/bronze_ingestion.py                    # Ingests 2023 full year by default
     python ingestion/taxi/bronze_ingestion.py --year 2022        # Ingests specific year
     python ingestion/taxi/bronze_ingestion.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023

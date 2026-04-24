@@ -5,6 +5,7 @@ networks:
 volumes:
   minio_data:
   superset_home:
+  dbt_tmp:
 
 services:
   minio:
@@ -40,9 +41,8 @@ services:
       mc mb --ignore-existing local/bronze;
       mc mb --ignore-existing local/silver;
       mc mb --ignore-existing local/gold;
-      mc mb --ignore-existing local/dbt-artifacts;
-      mc mb --ignore-existing local/great-expectations;
-      echo 'Buckets created: bronze, silver, gold, dbt-artifacts, great-expectations';
+      mc mb --ignore-existing local/artifacts;
+      echo 'Buckets created: bronze, silver, gold, artifacts';
       exit 0;
       "
     networks:
@@ -58,11 +58,12 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./transformations/dbt:/usr/app/dbt
-      - ./ingestion:/usr/app/ingestion
-      - ./tmp:/tmp
+      - dbt_tmp:/tmp
     working_dir: /usr/app/dbt
     environment:
       DBT_PROFILES_DIR: /usr/app/dbt
+      DBT_LOG_PATH: /usr/app/tmp/dbt_logs
+      DBT_TARGET_PATH: /usr/app//tmp/dbt_target
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_ENDPOINT_URL: http://minio:9000
@@ -175,6 +176,7 @@ services:
         condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__WEBSERVER__SECRET_KEY: "lakehouse_secret_key_123"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     command: [
@@ -208,6 +210,7 @@ services:
     environment:
       _PIP_ADDITIONAL_REQUIREMENTS: "" # prevents Airflow from overriding pip installs
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__WEBSERVER__SECRET_KEY: "lakehouse_secret_key_123"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__LOGGING__REMOTE_LOGGING: "false"
@@ -216,13 +219,17 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_ENDPOINT_URL: http://minio:9000
+      DBT_PROFILES_DIR: /opt/airflow/transformations/dbt
+      DBT_PROJECT_DIR: /opt/airflow/transformations/dbt
+      DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
+      DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
-      - ./quality/validation:/opt/airflow/quality
+      - ./quality:/opt/airflow/quality
       - ./data:/opt/airflow/data
-      - ./tmp:/tmp
+      - dbt_tmp:/tmp
     command: webserver
     networks:
       - lakehouse
@@ -239,19 +246,24 @@ services:
     environment:
       _PIP_ADDITIONAL_REQUIREMENTS: "" # prevents Airflow from overriding pip installs
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__WEBSERVER__SECRET_KEY: "lakehouse_secret_key_123"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__LOGGING__REMOTE_LOGGING: "false"
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_ENDPOINT_URL: http://minio:9000
+      DBT_PROFILES_DIR: /opt/airflow/transformations/dbt
+      DBT_PROJECT_DIR: /opt/airflow/transformations/dbt
+      DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
+      DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
-      - ./quality/validation:/opt/airflow/quality/validation
+      - ./quality:/opt/airflow/quality
       - ./data:/opt/airflow/data
-      - ./tmp:/tmp
+      - dbt_tmp:/tmp
     command: scheduler
     networks:
       - lakehouse

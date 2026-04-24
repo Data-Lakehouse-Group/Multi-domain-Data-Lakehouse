@@ -13,11 +13,12 @@ Input:  s3://bronze/taxi/yellow_tripdata/  (Delta table)
 Output: s3://silver/taxi/yellow_tripdata/  (Delta table, cleaned)
 
 Usage:
-    python transformations/silver/taxi.py               #Performs Silver Transform on 2023 full year by default
-    python transformations/silver/taxi.py --year 2023   #Performs Silver Transform on specific year
-    python transformations/silver/taxi.py --year 2023 --month-start 1 --month-end 6 #Performs Silver Transform on Jan to May 2023 
+    python transformations/silver/taxi.py                                           #Performs Silver Transform on 2023 full year by default
+    python transformations/silver/taxi.py --year 2023                               #Performs Silver Transform on specific year
+    python transformations/silver/taxi.py --year 2023 --month-start 1 --month-end 1 #Performs Silver Transform on Jan 2023 
 """
 
+import os
 import argparse
 import calendar
 
@@ -35,12 +36,12 @@ SILVER_URI = "s3://silver/taxi/yellow_tripdata"
 
 # MinIO connection
 STORAGE_OPTIONS = {
-    "endpoint_url"       : "http://localhost:9000",
-    "aws_access_key_id"  : "minioadmin",
-    "aws_secret_access_key": "minioadmin",
-    "region_name"        : "us-east-1",
-    "allow_http"         : "true",          
-    "aws_s3_allow_unsafe_rename": "true",   
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
+    "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+    "allow_http"                : "true",
+    "aws_region"                : "us-east-1",
+    "aws_s3_allow_unsafe_rename": "true",
 }
 
 # Validation thresholds

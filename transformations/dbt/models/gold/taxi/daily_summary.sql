@@ -1,5 +1,12 @@
 -- Answers: How did each day of the week perform in terms of trips, revenue, and efficiency?
 
+{{ config(
+    materialized  = 'external',
+    location      = 's3://artifacts/dbt/taxi/staging/daily_summary.parquet',
+    format        = 'parquet',
+) }}
+
+
 SELECT
     day_name,
     pickup_day_of_week,

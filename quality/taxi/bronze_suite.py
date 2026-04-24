@@ -10,16 +10,18 @@ Validates that Bronze ingestion completed successfully through the following:
 Runs AFTER bronze_ingest.py, BEFORE silver_transform.py
 
 Usage:
-    python validation/bronze/taxi.py --year 2023 --month 1
-    python validation/bronze/taxi.py --year 2023 --month-start 1 --month-end 6
-    python validation/bronze/taxi.py --year 2023
+    python quality/taxi/bronze_suite.py
+    python quality/taxi/bronze_suite.py --year 2023
+    python quality/taxi/bronze_suite.py --year 2023 --month-start 1 --month-end 1
+    python quality/taxi/bronze_suite.py --year 2023 --month-start 1 --month-end 6
 """
 
+import os
 import calendar
 import argparse
+import boto3
 import json
 import sys
-from pathlib import Path
 
 import great_expectations as gx
 from great_expectations.checkpoint.checkpoint import CheckpointResult 
@@ -36,16 +38,16 @@ from deltalake import DeltaTable
 # Bronze delta table URI in MinIO
 BRONZE_URI = "s3://bronze/taxi/yellow_tripdata"
 
-#Directory to store reports
-REPORT_DIR = Path("quality/reports/bronze/taxi")
+#URI in MinIO to store reports
+REPORT_URI = "s3://artifacts/great_expectations/reports/taxi/bronze"
 
 # MinIO connection
 STORAGE_OPTIONS = {
-    "endpoint_url"             : "http://localhost:9000",
-    "aws_access_key_id"        : "minioadmin",
-    "aws_secret_access_key"    : "minioadmin",
-    "region_name"              : "us-east-1",
-    "allow_http"               : "true",
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
+    "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+    "allow_http"                : "true",
+    "aws_region"                : "us-east-1",
     "aws_s3_allow_unsafe_rename": "true",
 }
 
@@ -120,13 +122,25 @@ def load_bronze_month(year: int, month: int) -> pd.DataFrame:
         )
 
 def save_validation_report(result: CheckpointResult, year: int, month: int):
-    REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = REPORT_DIR / f"bronze_{year}_{month:02d}.json"
+    report_name    = f"{year}_{month:02d}.json"
+    report_content = json.dumps(result.describe_dict(), indent=2, default=str)
 
-    with open(report_path, "w") as f:
-        json.dump(result.describe_dict(), f, indent=2, default=str)
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url          = STORAGE_OPTIONS["endpoint_url"],
+        aws_access_key_id     = STORAGE_OPTIONS["aws_access_key_id"],
+        aws_secret_access_key = STORAGE_OPTIONS["aws_secret_access_key"],
+        region_name           = STORAGE_OPTIONS["aws_region"],
+    )
 
-    print(f"\n  Report saved : {report_path}")
+    s3_client.put_object(
+        Bucket      = "artifacts",
+        Key         = f"great_expectations/reports/taxi/bronze/{report_name}",
+        Body        = report_content.encode("utf-8"),
+        ContentType = "application/json",
+    )
+
+    print(f"\n  Report saved : {REPORT_URI}/{report_name}")
     print(f"  {'=' * 55}")
 
 def print_validation_report(result: CheckpointResult, year: int, month: int):
@@ -199,7 +213,7 @@ def main():
     parser.add_argument("--year",  type=int, default=2023, help="Year to validate (default: 2023)")
     parser.add_argument("--month-start", type=int, default=None, help="First month in range. Omit for full year")
     parser.add_argument("--month-end", type=int, default=None, help="Last month in range. Omit for full year")
-    
+
     args = parser.parse_args()
 
     #Make the month range from arguments

@@ -10,8 +10,8 @@ test-paths: ["tests"]
 analysis-paths: ["analyses"]
 macro-paths: ["macros"]
 
-target-path: "target"
-clean-targets: ["target", "dbt_packages"]
+#This is done so airflow can reach this in docker
+clean-targets: ["/tmp/dbt_target"]
 
 models:
   multi_domain_lakehouse:
@@ -38,14 +38,19 @@ models:
         +tags: ["weather", "intermediate"]
 
     gold:
-      +materialized: table
+      +materialized: external
+      +format: parquet
       taxi:
+        +location_root: "s3://artifacts/dbt/taxi/staging"
         +tags: ["taxi", "gold"]
       github_archive:
+        +location_root: "s3://artifacts/dbt/github_archive/staging"
         +tags: ["github", "gold"]
       retail:
+        +location_root: "s3://artifacts/dbt/retail/staging"
         +tags: ["retail", "gold"]
       weather:
+        +location_root: "s3://artifacts/dbt/weather/staging"
         +tags: ["weather", "gold"]
 
 seeds:

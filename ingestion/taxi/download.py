@@ -4,7 +4,7 @@ NYC Taxi TLC Data Downloader
 Downloads raw Parquet files from the TLC website and saves them
 to a local staging directory before Bronze ingestion.
  
-Usage:
+Usage: (add --debug at the end of each for local testing)
     python ingestion/taxi/download.py                    # Downloads 2023 full year by default
     python ingestion/taxi/download.py --year 2022        # Downloads specific year
     python ingestion/taxi/download.py --year 2023 --month-start 1 --month-end 1   # Downloads January only
