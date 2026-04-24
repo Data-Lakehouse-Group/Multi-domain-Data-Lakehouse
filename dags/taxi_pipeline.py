@@ -24,7 +24,8 @@ from airflow.models import Connection
 # ---------------------------------------------------------------------------
 default_args = {
     "owner"           : "lakehouse",
-    "retries"         : None,
+    "retries"          : 1000000,
+    "retry_delay"      : timedelta(days=1),
     "email_on_failure": False,
 }
 
