@@ -5,7 +5,6 @@ networks:
 volumes:
   minio_data:
   superset_home:
-  dbt_tmp:
 
 services:
   minio:
@@ -56,22 +55,23 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
+    ports:
+      - "8001:8001"
     volumes:
       - ./transformations/dbt:/usr/app/dbt
-      - dbt_tmp:/tmp
     working_dir: /usr/app/dbt
     environment:
       DBT_PROFILES_DIR: /usr/app/dbt
       DBT_LOG_PATH: /usr/app/tmp/dbt_logs
-      DBT_TARGET_PATH: /usr/app//tmp/dbt_target
+      DBT_TARGET_PATH: /usr/app/tmp/dbt_target
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_REGION: us-east-1
       AWS_S3_FORCE_PATH_STYLE: "true"
+    command: uvicorn app:app --host 0.0.0.0 --port 8001
     networks:
       - lakehouse
-    entrypoint: ["tail", "-f", "/dev/null"]
 
   # ── Superset init (set up DB and admin user) ────
   superset-init:
@@ -198,6 +198,9 @@ services:
 
   # ── Airflow UI ─────────────────────────────────────────────
   airflow-webserver:
+    #Needed for hosting containers within airflow
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: .
       dockerfile: Dockerfile.airflow
@@ -224,12 +227,12 @@ services:
       DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
       DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock #Needed to mount new containers within airflow
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
       - ./quality:/opt/airflow/quality
       - ./data:/opt/airflow/data
-      - dbt_tmp:/tmp
     command: webserver
     networks:
       - lakehouse
@@ -258,12 +261,12 @@ services:
       DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
       DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock #Needed to mount new containers within airflow
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
       - ./quality:/opt/airflow/quality
       - ./data:/opt/airflow/data
-      - dbt_tmp:/tmp
     command: scheduler
     networks:
       - lakehouse

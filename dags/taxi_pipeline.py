@@ -9,11 +9,15 @@ Each run processes one month of data based on the execution date.
 """
 
 import os
+import json
 from datetime import datetime, timedelta
-from docker.types import Mount
-from airflow import DAG
-from airflow.providers.docker.operators.docker import DockerOperator
+
+from airflow import DAG, settings
+from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.operators.bash import BashOperator
+from airflow.models import Connection
+
+
 
 # ---------------------------------------------------------------------------
 # DEFAULT ARGS FOR PIPELINE ORCHESTRATION
@@ -23,6 +27,28 @@ default_args = {
     "retries"         : None,
     "email_on_failure": False,
 }
+
+# ---------------------------------------------------------------------------
+# DBT Server Connection
+# ---------------------------------------------------------------------------
+
+def create_dbt_connection():
+    conn = Connection(
+        conn_id   = "dbt_server",
+        conn_type = "http",
+        host      = "lakehouse-dbt",
+        port      = 8001,
+        schema    = "http",
+    )
+    session = settings.Session()
+    existing = session.query(Connection).filter(
+        Connection.conn_id == "dbt_server"
+    ).first()
+    if not existing:
+        session.add(conn)
+        session.commit()
+
+create_dbt_connection()
 
 # ---------------------------------------------------------------------------
 # DAG DEFINITION
@@ -107,40 +133,23 @@ with DAG(
 
     # -----------------------------------------------------------------------
     # TASK 6 — Run dbt staging + intermediate + gold models
-    # Builds tables in lakehouse.duckdb temp file for gold ingest after this
+    # Calls on an external dbt server that stores its transforms as a parquet
+    # first to MinIO for the gold ingest to then convert this
+    # to a delta table
     # -----------------------------------------------------------------------
    # dbt build --vars '{"year": 2023, "month": 1}' --select tag:taxi --target prod
-    gold_transform = DockerOperator(
-        task_id        = "gold_dbt_transform",
-        image          = "multi-domain-data-lakehouse-dbt",
-        container_name = "task_dbt_{{ execution_date.strftime('%Y%m') }}",
-        command        = [
-            "dbt", "build",
-            "--target", "prod",
-            "--select", "+tag:taxi",
-            "--vars '{\"year\": {{ execution_date.year }}, \"month\": {{ execution_date.month }}}'"
-        ],
-        environment    = {
-            "DBT_PROFILES_DIR"          : "/usr/app/dbt",
-            "DBT_LOG_PATH"              : "/usr/app/tmp/dbt_logs",
-            "DBT_TARGET_PATH"           : "/usr/app/tmp/dbt_target",
-            "AWS_ENDPOINT_URL"          : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
-            "AWS_ACCESS_KEY_ID"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
-            "AWS_SECRET_ACCESS_KEY"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
-            "AWS_REGION"                : "us-east-1",
-            "AWS_S3_FORCE_PATH_STYLE"   : "true"
-        },
-        mounts         = [
-            Mount(
-                source = "/opt/airflow/transformations/dbt",
-                target = "/usr/app/dbt",
-                type   = "bind",
-            ),
-        ],
-        network_mode   = "multi-domain-data-lakehouse_lakehouse",
-        auto_remove    = "success",
-        docker_url     = "unix://var/run/docker.sock",
-        mount_tmp_dir  = False,
+    gold_transform = SimpleHttpOperator(
+        task_id         = "gold_transform",
+        http_conn_id    = "dbt_server",
+        endpoint        = "/taxi",
+        method          = "POST",
+        data            = json.dumps({
+            "year"  : "{{ execution_date.year }}",
+            "month" : "{{ execution_date.month }}"
+        }),
+        headers         = {"Content-Type": "application/json"},
+        response_check  = lambda response: response.json()["success"] == True,
+        log_response    = True,
     )
 
     # -----------------------------------------------------------------------
