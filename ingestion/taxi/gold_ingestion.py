@@ -4,7 +4,7 @@ Taxi Gold Ingestion
 Reads Gold views that dbt built in the persistent DuckDB file
 and writes them as Delta tables to MinIO.
 
-This file facilitates a seperation of concerns where dbt only
+This file facilitates a separation of concerns where dbt only
 handles data aggregation logic while the gold_ingestion.py
 handles the write to MinIO as a Delta Table
 
@@ -53,6 +53,21 @@ GOLD_MODELS = {
         "view"        : "individual_day_summary",
         "write_uri"         : "s3://gold/taxi/yellow_tripdata/individual_day_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/individual_day_summary.parquet"
+    },
+    "hourly_summary": {
+        "view"        : "hourly_summary",
+        "write_uri"   : "s3://gold/taxi/yellow_tripdata/hourly_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/hourly_summary.parquet"
+    },
+    "payment_summary": {
+        "view"        : "payment_summary",
+        "write_uri"   : "s3://gold/taxi/yellow_tripdata/payment_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/payment_summary.parquet"
+    },
+    "borough_summary": {
+        "view"        : "borough_summary",
+        "write_uri"   : "s3://gold/taxi/yellow_tripdata/borough_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/borough_summary.parquet"
     },
 }
 
@@ -124,7 +139,7 @@ def ingest_model(
                 storage_options= STORAGE_OPTIONS,
             )
 
-        print(f"  [OK]: Successfully ingeted {model_name}")
+        print(f"  [OK]: Successfully ingested {model_name}")
         return True
 
     except Exception as e:
