@@ -10,7 +10,7 @@ that can be queried independently via time travel.
 Input:  data/raw/taxi/yellow_tripdata_{year}-{month}.parquet
 Output: s3://bronze/taxi/yellow_tripdata/ (Delta table in MinIO)
  
-Usage:
+Usage: (add --debug at the end of each for local testing)
     python ingestion/taxi/bronze_ingestion.py                    # Ingests 2023 full year by default
     python ingestion/taxi/bronze_ingestion.py --year 2022        # Ingests specific year
     python ingestion/taxi/bronze_ingestion.py --year 2023 --month-start 1 --month-end 1   # Ingests January only for 2023
@@ -18,6 +18,7 @@ Usage:
 """
 
 
+import os
 import argparse
 import calendar
 from datetime import datetime, timezone
@@ -32,24 +33,28 @@ from deltalake.exceptions import TableNotFoundError
 # CONFIG
 # ---------------------------------------------------------------------------
 
-INPUT_DIR       = Path("data/raw/taxi")
+OUTPUT_DIR_DEBUG    = Path("data/raw/taxi")
+OUTPUT_DIR_PROD     = Path("/opt/airflow/data/raw/taxi")
 BRONZE_URI = "s3://bronze/taxi/yellow_tripdata"
 
 # MinIO connection
 STORAGE_OPTIONS = {
-    "endpoint_url"       : "http://localhost:9000",
-    "aws_access_key_id"  : "minioadmin",
-    "aws_secret_access_key": "minioadmin",
-    "region_name"        : "us-east-1",
-    "allow_http"         : "true",          
-    "aws_s3_allow_unsafe_rename": "true",   
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
+    "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+    "allow_http"                : "true",
+    "aws_region"                : "us-east-1",
+    "aws_s3_allow_unsafe_rename": "true",
 }
 # ---------------------------------------------------------------------------
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def build_source_path(year: int, month: int) -> Path:
-    return INPUT_DIR / f"yellow_tripdata_{year}-{month:02d}.parquet"
+def build_source_path(year: int, month: int, is_debug: bool) -> Path:
+    if is_debug:
+        return OUTPUT_DIR_DEBUG / f"yellow_tripdata_{year}-{month:02d}.parquet"
+    else:
+        return OUTPUT_DIR_PROD / f"yellow_tripdata_{year}-{month:02d}.parquet"
 
 def add_audit_columns(table: pa.Table, source_file: str, year : int, month: int) -> pa.Table:
     num_rows = table.num_rows
@@ -79,11 +84,13 @@ def main():
     parser.add_argument("--year",  type=int, default=2023, help="Year to download (default: 2023)")
     parser.add_argument("--month-start", type=int, default=None, help="First month in range. Omit for full year")
     parser.add_argument("--month-end", type=int, default=None, help="Last month in range. Omit for full year")
+    parser.add_argument("--debug" ,action="store_true", help="Set to true if running locally")
+
 
     args = parser.parse_args()
 
     #Make the month range from arguments
-    if args.month_start and args.month_end:
+    if args.month_start is not None and args.month_end is not None:
         if(args.month_start > args.month_end):
             print(f"ERROR: Month start range ({args.month_start}) is greater than month end range({args.month_end})")
             exit(1)
@@ -95,7 +102,7 @@ def main():
     year = args.year
 
     for month in months:
-        source_path = build_source_path(year, month)
+        source_path = build_source_path(year, month, args.debug)
         month_name = calendar.month_name[month]
 
         #Check if the files have already been downloaded before being ingested into minio

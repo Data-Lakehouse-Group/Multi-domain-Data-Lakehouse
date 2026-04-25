@@ -2,6 +2,17 @@ import duckdb
 
 con = duckdb.connect("/app/superset_home/lakehouse.duckdb")
 
+# Check if httpfs is already installed
+is_installed = con.execute("""
+    SELECT installed 
+    FROM duckdb_extensions() 
+    WHERE extension_name = 'httpfs'
+""").fetchone()[0]
+
+# Only run install if it isn't there
+if not is_installed:
+    con.execute("INSTALL httpfs;")
+    
 con.execute("LOAD httpfs;")
 
 # Create persistent secret — stored inside lakehouse.duckdb permanently

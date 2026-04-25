@@ -22,7 +22,7 @@ multi_domain_lakehouse:
 
     docker:
       type: duckdb
-      path: "/tmp/lakehouse.duckdb" #This is done only for testing
+      path: "/tmp/lakehouse.duckdb" # Needed for gold_ingestion to read from
       extensions:
         - delta
         - httpfs
@@ -37,14 +37,17 @@ multi_domain_lakehouse:
 
     prod:
       type: duckdb
-      path: ":memory:"
+      path: "/tmp/lakehouse.duckdb" # Needed for gold_ingestion to read from
       extensions:
         - delta
         - httpfs
       settings:
         s3_region: us-east-1
-        s3_access_key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
-        s3_secret_access_key: "{{ env_var('MINIO_SECRET_KEY') }}"
-        s3_endpoint: "{{ env_var('MINIO_ENDPOINT') }}"
+        # s3_access_key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
+        # s3_secret_access_key: "{{ env_var('MINIO_SECRET_KEY') }}"
+        # s3_endpoint: "{{ env_var('MINIO_ENDPOINT') }}"
+        s3_access_key_id: minioadmin
+        s3_secret_access_key: minioadmin
+        s3_endpoint: minio:9000
         s3_use_ssl: false
         s3_url_style: path

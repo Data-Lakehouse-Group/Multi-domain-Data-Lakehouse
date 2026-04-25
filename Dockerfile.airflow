@@ -1,0 +1,25 @@
+FROM apache/airflow:2.9.1
+
+#Get dependencies for C to install packages
+USER root
+RUN apt-get update && apt-get install -y gcc g++ && rm -rf /var/lib/apt/lists/*
+
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    "numpy<2" \
+    requests==2.32.3 \
+    pandas==2.2.2 \
+    pyarrow==23.0.0 \
+    duckdb==1.4.4 \
+    deltalake==1.5.0 \
+    tqdm==4.66.4 \
+    kaggle==2.0.0 \
+    great_expectations==1.15.2 \
+    dbt-core==1.11.8 \
+    dbt-duckdb==1.10.1 \
+    boto3==1.42.95 \
+    s3fs==2024.2.0
+
+USER airflow

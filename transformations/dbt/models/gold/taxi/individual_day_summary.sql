@@ -1,5 +1,12 @@
 -- Answers: How did each individual date perform in terms of trips, revenue, and efficiency?
 
+{{ config(
+    materialized  = 'external',
+    location      = 's3://artifacts/dbt/taxi/staging/individual_day_summary.parquet',
+    format        = 'parquet',
+) }}
+
+
 SELECT
     pickup_date,
     source_year,

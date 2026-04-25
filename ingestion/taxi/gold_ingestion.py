@@ -11,25 +11,25 @@ handles the write to MinIO as a Delta Table
 Must run AFTER: dbt run --select tag:taxi
 
 Usage:
-    python ingestion/taxi/gold_ingestion.py
-    python ingestion/taxi/gold_ingestion.py --model daily_summary
+    python ingestion/taxi/gold_ingestion.py                         #Defaults to 2023 January
+    python ingestion/taxi/gold_ingestion.py --year 2023 --month 2   #Ingests 2023 February
 """
 
 import os
 import argparse
 import calendar
 from deltalake import write_deltalake, DeltaTable
-import duckdb
+import pyarrow as pa
+import pyarrow.fs as pafs
+import pyarrow.parquet as pq
 
 
 # ---------------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------------
 
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "./tmp/lakehouse.duckdb")
-
 STORAGE_OPTIONS = {
-    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://localhost:9000"),
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
     "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
     "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
     "allow_http"                : "true",
@@ -41,15 +41,18 @@ STORAGE_OPTIONS = {
 GOLD_MODELS = {
     "daily_summary": {
         "view"        : "daily_summary",
-        "uri"         : "s3://gold/taxi/yellow_tripdata/daily_summary"
+        "write_uri"   : "s3://gold/taxi/yellow_tripdata/daily_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/daily_summary.parquet"
     },
     "zone_performance": {
         "view"        : "zone_performance",
-        "uri"         : "s3://gold/taxi/yellow_tripdata/zone_performance"
+        "write_uri"   : "s3://gold/taxi/yellow_tripdata/zone_performance",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/zone_performance.parquet"
     },
     "individual_day_summary": {
         "view"        : "individual_day_summary",
-        "uri"         : "s3://gold/taxi/yellow_tripdata/individual_day_summary"
+        "write_uri"         : "s3://gold/taxi/yellow_tripdata/individual_day_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/individual_day_summary.parquet"
     },
 }
 
@@ -63,30 +66,23 @@ def table_exists(uri: str) -> bool:
     except Exception:
         return False
 
-def get_connection() -> duckdb.DuckDBPyConnection:
-    con = duckdb.connect(DUCKDB_PATH, read_only=False)  # needs write for httpfs setup
-    
-    endpoint = os.getenv("AWS_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
+def get_s3_filesystem() -> pafs.S3FileSystem:
+    return pafs.S3FileSystem(
+        endpoint_override = STORAGE_OPTIONS["endpoint_url"].replace("http://", ""),
+        access_key        = STORAGE_OPTIONS["aws_access_key_id"],
+        secret_key        = STORAGE_OPTIONS["aws_secret_access_key"],
+        scheme            = "http",
+    )
 
-    con.execute(f"""
-        INSTALL httpfs;
-        LOAD httpfs;
-        INSTALL delta;
-        LOAD delta;
-        SET s3_endpoint          = '{endpoint}';
-        SET s3_access_key_id     = '{os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")}';
-        SET s3_secret_access_key = '{os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin")}';
-        SET s3_use_ssl           = false;
-        SET s3_url_style         = 'path';
-        SET s3_region            = 'us-east-1';
-    """)
-    return con
+def read_parquet_from_minio(uri: str) -> pa.Table:
+    fs    = get_s3_filesystem()
+    path  = uri.replace("s3://", "")
+    return pq.read_table(path, filesystem=fs)
 
 # ---------------------------------------------------------------------------
 # CORE FUNCTIONS
 # ---------------------------------------------------------------------------
 def ingest_model(
-        con: duckdb.DuckDBPyConnection, 
         model_name: str, 
         model_details: dict, 
         year: int, 
@@ -95,11 +91,12 @@ def ingest_model(
 
     print(f"\n  [{model_name}]")
     print(f"  Reading view : {model_details['view']}")
-    print(f"  Writing to   : {model_details['uri']}")
+    print(f"  Reading from : {model_details['source_uri']}")
+    print(f"  Writing to   : {model_details['write_uri']}")
 
     try:
-        #Read into an arrow table for write to delta table
-        gold_table = con.execute(f"SELECT * FROM {model_details['view']}").fetch_arrow_table()
+        #Read parquet file into an arrow table for write to delta table
+        gold_table = read_parquet_from_minio(model_details["source_uri"])
 
         row_count = gold_table.num_rows
         print(f"  Rows         : {row_count:,}")
@@ -108,9 +105,9 @@ def ingest_model(
             print(f"  [WARN] View returned 0 rows — skipping Delta write")
             return False
 
-        if table_exists(model_details['uri']):
+        if table_exists(model_details['write_uri']):
             write_deltalake(
-                model_details['uri'],
+                model_details['write_uri'],
                 gold_table,
                 mode = 'overwrite',
                 predicate=f"source_year = {year} AND source_month = {month}",
@@ -119,7 +116,7 @@ def ingest_model(
             )
         else:
             write_deltalake(
-                model_details['uri'],
+                model_details['write_uri'],
                 gold_table,
                 mode = 'overwrite',
                 partition_by=["source_year", "source_month"],
@@ -146,22 +143,15 @@ def main():
     args = parser.parse_args()
 
     print(f"\nTaxi Gold Ingestion")
-    print(f"DuckDB file : {DUCKDB_PATH}")
     print(f"Ingesting data aggregated from year: {args.year} month: {calendar.month_name[args.month]}")
 
     for model_name, model_details in GOLD_MODELS.items():
-        #Connect to the temporary directory where queries are stored
-        con = get_connection()
-
         ingest_model(
-            con,
             model_name, 
             model_details, 
             args.year, 
             args.month
         )
-
-        con.close() #Close the duckdb connection
 
 if __name__ == "__main__":
     main()

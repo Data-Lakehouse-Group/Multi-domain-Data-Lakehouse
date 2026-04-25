@@ -6,6 +6,7 @@ quality/reports/
 *.parquet
 *.delta
 .user.yml
+__pycache__
 transformations/dbt/logs/
 transformations/dbt/dbt_packages/
 transformations/dbt/target/

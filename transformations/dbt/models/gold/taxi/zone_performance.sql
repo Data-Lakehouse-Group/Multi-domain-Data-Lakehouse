@@ -1,5 +1,12 @@
 -- Answers: How well does each pickup and dropoff zone combination perform
 
+{{ config(
+    materialized  = 'external',
+    location      = 's3://artifacts/dbt/taxi/staging/zone_performance.parquet',
+    format        = 'parquet',
+) }}
+
+
 SELECT 
     pickup_zone,
     pickup_service_zone,
