@@ -13,8 +13,7 @@ Output: s3://bronze/weather/ (Delta table in MinIO)
  
 Usage:
     python ingestion/weather/ingestion.py                                    # Ingests 2023 by default
-    python ingestion/weather/ingestion.py --year 2022                        # Ingests specific year
-    python ingestion/weather/ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
+    python ingestion/weather/bronze_ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
 """
 
 import tarfile
@@ -26,6 +25,8 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.csv as pa_csv
 import pyarrow.compute as pc
+import pyarrow.fs as pafs
+
 from deltalake import DeltaTable, write_deltalake
 from deltalake.exceptions import TableNotFoundError
 
@@ -33,7 +34,7 @@ from deltalake.exceptions import TableNotFoundError
 # CONFIG
 # ---------------------------------------------------------------------------
 
-INPUT_DIR       = Path("data/raw/weather")
+SOURCE_URI       = "raw/weather"
 DELTA_TABLE_URI = "s3://bronze/weather"
 
 # MinIO connection — must match your docker-compose.yml
@@ -49,18 +50,52 @@ STORAGE_OPTIONS = {
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def build_source_path(year: int) -> Path:
-    return INPUT_DIR / f"{year}.tar.gz"
+def get_s3_filesystem() -> pafs.S3FileSystem:
+    endpoint = STORAGE_OPTIONS["endpoint_url"].replace("http://", "").replace("https://", "")
+    scheme   = "https" if STORAGE_OPTIONS.get("aws_use_ssl", "false") == "true" else "http"
 
-def extract_data_to_table(file: Path) -> pa.Table:
+    return pafs.S3FileSystem(
+        endpoint_override = endpoint,
+        access_key        = STORAGE_OPTIONS["aws_access_key_id"],
+        secret_key        = STORAGE_OPTIONS["aws_secret_access_key"],
+        scheme            = scheme,
+    )
+
+def file_exists_in_minio(fs: pafs.S3FileSystem, path: str) -> bool:
+    try:
+        info = fs.get_file_info(path)
+        return info.type != pafs.FileType.NotFound
+    except Exception:
+        return False
+
+def extract_source_data_to_table(fs: pafs.S3FileSystem, year: int) -> pa.Table:
+    path = f"{SOURCE_URI}/{year}.tar.gz"
+
+    if not file_exists_in_minio(fs, path):
+        raise FileNotFoundError(f"Source file not found in MinIO: {path}")
+    
     with tempfile.TemporaryDirectory() as tmp_dir:
-        # Extract all CSVs into temp directory
-        with tarfile.open(file, "r:gz") as tar:
-            tar.extractall(tmp_dir, filter='data')
 
+        print(f" Moving {path} to local temp directory...")
+        # Stream the tar.gz from MinIO to a local temp file, then extract
+        local_tar = Path(tmp_dir) / f"{year}.tar.gz"
+        with fs.open_input_stream(path) as s3_stream:
+            with open(local_tar, "wb") as local_file:
+                while True:
+                    chunk = s3_stream.read(8192)
+                    if not chunk:
+                        break
+                    local_file.write(chunk)
+
+        print(f" Extracting {local_tar} csv's into tmp directory...")
+        # Extract CSVs from the local tar.gz
+        with tarfile.open(local_tar, "r:gz") as tar:
+            tar.extractall(tmp_dir, filter="data")
+
+        print(f" Merging all csvs...")
         # Read and concatenate all CSVs into a single PyArrow table
         tables = []
-        for csv_file in Path(tmp_dir).glob("*.csv"):
+        for csv_file in Path(tmp_dir).rglob("*.csv"):
             table = pa_csv.read_csv(csv_file)
 
             # Cast STATION to string to ensure consistency across all CSVs
@@ -73,14 +108,15 @@ def extract_data_to_table(file: Path) -> pa.Table:
 
         return pa.concat_tables(tables, promote_options="default")
 
-def add_audit_columns(table: pa.Table, source_file: str, year : int) -> pa.Table:
+def add_audit_columns(table: pa.Table, year : int) -> pa.Table:
     num_rows = table.num_rows
     now = datetime.now(timezone.utc)
+    source_path = f"{SOURCE_URI}/{year}.tar.gz"
  
     return (
         table
         .append_column("ingested_at",  pa.array([now] * num_rows, type=pa.timestamp("us", tz="UTC")))
-        .append_column("source_file",  pa.array([source_file] * num_rows, type=pa.string()))
+        .append_column("source_file",  pa.array([source_path] * num_rows, type=pa.string()))
         .append_column("source_year",  pa.array([year] * num_rows, type=pa.int16()))
         .append_column("source_month", pc.cast(pc.month(table["DATE"]), pa.int8()))
     )
@@ -98,42 +134,32 @@ def table_exists() -> bool:
 def main():
     #Sets up the parser for the CLI call of this file
     parser = argparse.ArgumentParser(description="Ingest NOAA GSOD weather archive files")
-    parser.add_argument("--year",       type=int, default=2023, help="Single year to ingest (default: 2023)")
     parser.add_argument("--year-start", type=int, default=None, help="First year in range")
     parser.add_argument("--year-end",   type=int, default=None, help="Last year in range")
 
     args = parser.parse_args()
 
     # Build the year range
-    if args.year_start and args.year_end:
-        if args.year_start > args.year_end:
+    if args.year_start > args.year_end:
             print(f"ERROR: Year start ({args.year_start}) is greater than year end ({args.year_end})")
             exit(1)
-        years = range(args.year_start, args.year_end + 1)
-    else:
-        #Default to just the given year if no range given
-        years = [args.year]
+    years = range(args.year_start, args.year_end + 1)
+
+    fs = get_s3_filesystem() #Gets the MinIO (S3) file configs
 
     for year in years:
-        source_path = build_source_path(year)
-
-        #Check if the files have already been downloaded before being ingested into minio
-        if not source_path.exists():
-            print(f"  ERROR: Source file not found: {source_path}")
-            print(f"  Run download.py first for {year} NOAA Weather Data \n")
-            continue
 
         print(f"\nBeginning ingestion of {year} NOAA Weather Data...")
 
         try:
-            print(f"Extracting data from {source_path} into one table...")
-            weather_data = extract_data_to_table(source_path)
+            print(f"Extracting data from s3://{SOURCE_URI} into one table...")
+            weather_data = extract_source_data_to_table(fs, year)
             row_count   = weather_data.num_rows
             print(f"Rows read: {row_count:,}")
  
             # Add audit columns before writing, this will be used for time travel queries
             print("Adding audit columns...")
-            weather_data = add_audit_columns(weather_data, source_path.name, year)
+            weather_data = add_audit_columns(weather_data, year)
 
 
             print("Writing data to Delta Lake in MinIO...")
@@ -156,9 +182,9 @@ def main():
                     storage_options= STORAGE_OPTIONS,
                 )
 
-            print(f"Successfully ingested {row_count:,} rows for {year}  NOAA Weather Data \n")
+            print(f"[OK] Successfully ingested {row_count:,} rows for {year}  NOAA Weather Data \n")
         except Exception as e:
-            print(f"ERROR: Failed to ingest {year}  NOAA Weather Data: {e} \n")
+            print(f"[ERROR]: Failed to ingest {year}  NOAA Weather Data: {e} \n")
             
 
 if __name__ == "__main__":
