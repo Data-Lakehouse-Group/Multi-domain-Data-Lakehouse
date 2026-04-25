@@ -1,7 +1,8 @@
 """
 Silver Validation: NOAA Weather
 ===============================
-Validates Silver Parquet for cleanliness, value ranges, and temporal consistency.
+Validates Silver Parquet for cleanliness, value ranges, temporal
+consistency, and the new derived columns (season, is_freezing, etc.).
 """
 
 import os
@@ -75,7 +76,7 @@ def run():
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(column="PRCP", min_value=0, max_value=2000)
     )
-    # Wind speed (m/s) – typical max ~50 m/s (hurricane force)
+    # Wind speed (m/s) – typical max ~50 m/s
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(column="WDSP", min_value=0, max_value=50)
     )
@@ -90,6 +91,11 @@ def run():
         gx.expectations.ExpectColumnValuesToBeInSet(column="is_freezing", value_set=[0, 1])
     )
 
+    # has_precipitation should be 0 or 1
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(column="has_precipitation", value_set=[0, 1])
+    )
+
     # Date should be within reasonable range (e.g., 1900-2026)
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(
@@ -97,6 +103,14 @@ def run():
             min_value=pd.Timestamp("1900-01-01"),
             max_value=pd.Timestamp("2026-12-31")
         )
+    )
+
+    # year and month consistency: no year outside 1900–2026
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(column="year", min_value=1900, max_value=2026)
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(column="month", min_value=1, max_value=12)
     )
 
     data_source = context.data_sources.add_pandas(name="silver_weather")
