@@ -18,21 +18,19 @@ from airflow.operators.bash import BashOperator
 from airflow.models import Connection
 
 
-
 # ---------------------------------------------------------------------------
 # DEFAULT ARGS FOR PIPELINE ORCHESTRATION
 # ---------------------------------------------------------------------------
 default_args = {
-    "owner"           : "lakehouse",
-    "retries"          : 1000000,
-    "retry_delay"      : timedelta(days=1),
-    "email_on_failure": False,
+    "owner"            : "lakehouse",
+    "retries"          : 2,                     # fixed from 1,000,000
+    "retry_delay"      : timedelta(minutes=5),
+    "email_on_failure" : False,
 }
 
 # ---------------------------------------------------------------------------
-# DBT Server Connection
+# DBT Server Connection (created once on DAG load)
 # ---------------------------------------------------------------------------
-
 def create_dbt_connection():
     conn = Connection(
         conn_id   = "dbt_server",
@@ -55,14 +53,14 @@ create_dbt_connection()
 # DAG DEFINITION
 # ---------------------------------------------------------------------------
 with DAG(
-    dag_id          = "taxi_pipeline",
-    description     = "NYC Taxi Bronze → Silver → Gold pipeline (With Validation and Download)",
-    default_args    = default_args,
-    start_date      = datetime(2023, 1, 1),
-    end_date        = datetime(2023, 1, 1),
-    schedule        = "0 0 1 * *",   # 1st of every month at midnight
-    catchup         = True,          # backfill all months from start_date
-    tags            = ["taxi", "lakehouse"],
+    dag_id      = "taxi_pipeline",
+    description = "NYC Taxi Bronze → Silver → Gold pipeline (With Validation and Download)",
+    default_args= default_args,
+    start_date  = datetime(2023, 1, 1),
+    end_date    = datetime(2023, 1, 1),
+    schedule    = "0 0 1 * *",   # 1st of every month at midnight
+    catchup     = True,          # backfill all months from start_date
+    tags        = ["taxi", "lakehouse"],
 ) as dag:
 
     # -----------------------------------------------------------------------
@@ -70,7 +68,7 @@ with DAG(
     # -----------------------------------------------------------------------
     download = BashOperator(
         task_id      = "download",
-        bash_command="""
+        bash_command = """
             python /opt/airflow/ingestion/taxi/download.py \
                 --year {{ execution_date.year }} \
                 --month-start {{ execution_date.month }} \
@@ -83,7 +81,7 @@ with DAG(
     # -----------------------------------------------------------------------
     bronze_ingest = BashOperator(
         task_id      = "bronze_ingest",
-        bash_command="""
+        bash_command = """
             python /opt/airflow/ingestion/taxi/bronze_ingestion.py \
                 --year {{ execution_date.year }} \
                 --month-start {{ execution_date.month }} \
@@ -97,7 +95,7 @@ with DAG(
     # -----------------------------------------------------------------------
     bronze_validation = BashOperator(
         task_id      = "bronze_validation",
-        bash_command="""
+        bash_command = """
             python /opt/airflow/quality/taxi/bronze_suite.py \
                 --year {{ execution_date.year }} \
                 --month-start {{ execution_date.month }} \
@@ -110,7 +108,7 @@ with DAG(
     # -----------------------------------------------------------------------
     silver_transform = BashOperator(
         task_id      = "silver_transform",
-        bash_command="""
+        bash_command = """
             python /opt/airflow/transformations/silver/taxi.py \
                 --year {{ execution_date.year }} \
                 --month-start {{ execution_date.month }} \
@@ -122,23 +120,19 @@ with DAG(
     # TASK 5 — Validate Silver with Great Expectations
     # Stops pipeline if quality checks fail
     # -----------------------------------------------------------------------
-    # silver_validation = BashOperator(
-    #     task_id      = "silver_validation",
-    #     bash_command = f"""
-    #         python /opt/airflow/quality/validation/taxi/silver_suite.py \
-    #             --year {YEAR} \
-    #             --month-start {MONTH} \
-    #             --month-end {MONTH}
-    #     """,
-    # )
+    silver_validation = BashOperator(
+        task_id      = "silver_validation",
+        bash_command = """
+            python /opt/airflow/quality/taxi/silver_suite.py \
+                --year {{ execution_date.year }} \
+                --month-start {{ execution_date.month }} \
+                --month-end {{ execution_date.month }}
+        """,
+    )
 
     # -----------------------------------------------------------------------
     # TASK 6 — Run dbt staging + intermediate + gold models
-    # Calls on an external dbt server that stores its transforms as a parquet
-    # first to MinIO for the gold ingest to then convert this
-    # to a delta table
     # -----------------------------------------------------------------------
-   # dbt build --vars '{"year": 2023, "month": 1}' --select tag:taxi --target prod
     gold_transform = SimpleHttpOperator(
         task_id         = "gold_transform",
         http_conn_id    = "dbt_server",
@@ -155,14 +149,13 @@ with DAG(
 
     # -----------------------------------------------------------------------
     # TASK 7 — Write Gold Delta tables to MinIO
-    # Reads dbt tables from lakehouse.duckdb temp file
     # -----------------------------------------------------------------------
     gold_ingest = BashOperator(
         task_id      = "gold_ingest",
-        bash_command="""
+        bash_command = """
             python /opt/airflow/ingestion/taxi/gold_ingestion.py \
                 --year {{ execution_date.year }} \
-                --month {{ execution_date.month }} 
+                --month {{ execution_date.month }}
         """
     )
 
@@ -176,7 +169,7 @@ with DAG(
         >> bronze_ingest
         >> bronze_validation
         >> silver_transform
-        # >> silver_validation
+        >> silver_validation
         >> gold_transform
         >> gold_ingest
     )
