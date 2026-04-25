@@ -41,32 +41,32 @@ STORAGE_OPTIONS = {
 GOLD_MODELS = {
     "daily_summary": {
         "view"        : "daily_summary",
-        "write_uri"   : "s3://gold/taxi/yellow_tripdata/daily_summary",
+        "write_uri"   : "s3://gold/taxi/daily_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/daily_summary.parquet"
     },
     "zone_performance": {
         "view"        : "zone_performance",
-        "write_uri"   : "s3://gold/taxi/yellow_tripdata/zone_performance",
+        "write_uri"   : "s3://gold/taxi/zone_performance",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/zone_performance.parquet"
     },
     "individual_day_summary": {
         "view"        : "individual_day_summary",
-        "write_uri"         : "s3://gold/taxi/yellow_tripdata/individual_day_summary",
+        "write_uri"         : "s3://gold/taxi/individual_day_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/individual_day_summary.parquet"
     },
     "hourly_summary": {
         "view"        : "hourly_summary",
-        "write_uri"   : "s3://gold/taxi/yellow_tripdata/hourly_summary",
+        "write_uri"   : "s3://gold/taxi/hourly_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/hourly_summary.parquet"
     },
     "payment_summary": {
         "view"        : "payment_summary",
-        "write_uri"   : "s3://gold/taxi/yellow_tripdata/payment_summary",
+        "write_uri"   : "s3://gold/taxi/payment_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/payment_summary.parquet"
     },
     "borough_summary": {
         "view"        : "borough_summary",
-        "write_uri"   : "s3://gold/taxi/yellow_tripdata/borough_summary",
+        "write_uri"   : "s3://gold/taxi/borough_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/borough_summary.parquet"
     },
 }
