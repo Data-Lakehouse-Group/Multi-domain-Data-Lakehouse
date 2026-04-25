@@ -134,8 +134,8 @@ def table_exists() -> bool:
 def main():
     #Sets up the parser for the CLI call of this file
     parser = argparse.ArgumentParser(description="Ingest NOAA GSOD weather archive files")
-    parser.add_argument("--year-start", type=int, default=None, help="First year in range")
-    parser.add_argument("--year-end",   type=int, default=None, help="Last year in range")
+    parser.add_argument("--year-start", type=int, default=2023, help="First year in range")
+    parser.add_argument("--year-end",   type=int, default=2023, help="Last year in range")
 
     args = parser.parse_args()
 
