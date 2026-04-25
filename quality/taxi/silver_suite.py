@@ -18,7 +18,6 @@ import argparse
 import json
 import sys
 import boto3
-from pathlib import Path
 
 import great_expectations as gx
 from great_expectations.checkpoint.checkpoint import CheckpointResult

@@ -10,7 +10,6 @@ test-paths: ["tests"]
 analysis-paths: ["analyses"]
 macro-paths: ["macros"]
 
-#This is done so airflow can reach this in docker
 clean-targets: ["/tmp/dbt_target"]
 
 models:
