@@ -68,10 +68,9 @@ def file_exists_in_minio(fs: pafs.S3FileSystem, path: str) -> bool:
     except Exception:
         return False
 
-def read_source_file(year: int, month: int) -> pa.Table:
+def read_source_file(fs: pafs.S3FileSystem ,year: int, month: int) -> pa.Table:
     filename = f"{year}-{month:02d}.parquet"
     path     = f"{SOURCE_URI}/{filename}"
-    fs       = get_s3_filesystem()
 
     if not file_exists_in_minio(fs, path):
         raise FileNotFoundError(
@@ -127,6 +126,8 @@ def main():
     
     year = args.year
 
+    fs = get_s3_filesystem() #Gets the MinIO (S3) file configs
+
     for month in months:
         month_name = calendar.month_name[month]
 
@@ -144,6 +145,7 @@ def main():
             taxi_data = add_audit_columns(taxi_data, year, month)
             print(f"Successfully added audit columns")
 
+            print("Writing data to Delta Lake in MinIO...")
             if table_exists(BRONZE_URI):
                 write_deltalake(
                     BRONZE_URI,

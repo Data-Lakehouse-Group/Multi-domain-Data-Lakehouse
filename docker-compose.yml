@@ -233,7 +233,6 @@ services:
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
       - ./quality:/opt/airflow/quality
-      - ./data:/opt/airflow/data
     command: webserver
     networks:
       - lakehouse
@@ -267,7 +266,6 @@ services:
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
       - ./quality:/opt/airflow/quality
-      - ./data:/opt/airflow/data
     command: scheduler
     networks:
       - lakehouse

@@ -1,19 +1,17 @@
 """
-NYC Taxi Bronze Validation Suite
+NOAA Weather Bronze Validation Suite (POST 2000 SCHEMA)
 ==================================
 Validates that Bronze ingestion completed successfully through the following:
     -The schema matches our expected schema with audited columns included
-    -The rows are between 100,000 and 6,000,000 per month
+    -The rows are between 100,000 and 6,000,000 per year
     -Ensure sepecified columns have non null values for a given percentage of the column
 
 
 Runs AFTER bronze_ingest.py, BEFORE silver_transform.py
 
 Usage:
-    python quality/taxi/bronze_suite.py
-    python quality/taxi/bronze_suite.py --year 2023
-    python quality/taxi/bronze_suite.py --year 2023 --month-start 1 --month-end 1
-    python quality/taxi/bronze_suite.py --year 2023 --month-start 1 --month-end 6
+    python quality/weather/bronze_suite.py
+    python quality/weather/bronze_suite.py --year-start 2020 --year-end 2023
 """
 
 import os
@@ -36,10 +34,10 @@ from deltalake import DeltaTable
 # ---------------------------------------------------------------------------
 
 # Bronze delta table URI in MinIO
-BRONZE_URI = "s3://bronze/taxi"
+BRONZE_URI = "s3://bronze/weather"
 
 #URI in MinIO to store reports
-REPORT_URI = "s3://artifacts/great_expectations/reports/taxi/bronze"
+REPORT_URI = "s3://artifacts/great_expectations/reports/weather/bronze"
 
 # MinIO connection
 STORAGE_OPTIONS = {
@@ -51,26 +49,32 @@ STORAGE_OPTIONS = {
     "aws_s3_allow_unsafe_rename": "true",
 }
 
-# Expected columns from TLC Yellow Taxi schema
+# Expected columns from NOAA Weather schema (post 2000)
 EXPECTED_COLUMNS = [
-    "VendorID",
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime",
-    "passenger_count",
-    "trip_distance",
-    "RatecodeID",
-    "store_and_fwd_flag",
-    "PULocationID",
-    "DOLocationID",
-    "payment_type",
-    "fare_amount",
-    "extra",
-    "mta_tax",
-    "tip_amount",
-    "tolls_amount",
-    "improvement_surcharge",
-    "total_amount",
-    "congestion_surcharge",
+    "STATION",
+    "DATE",
+    "DEWP",
+    "DEWP_ATTRIBUTES",
+    "WDSP",
+    "WDSP_ATTRIBUTES",
+    "TEMP", 
+    "TEMP_ATTRIBUTES",
+    "MXSPD",
+    "MAX",
+    "MAX_ATTRIBUTES",
+    "GUST",
+    "MIN",
+    "MIN_ATTRIBUTES",
+    "VISIB",
+    "VISIB_ATTRIBUTES",
+    "PRCP",
+    "PRCP_ATTRIBUTES",
+    "SNDP", 
+    "FRSHTT",
+    "STP", 
+    "STP_ATTRIBUTES",
+    "SLP",
+    "SLP_ATTRIBUTES",
 
     # Audit columns added by bronze_ingest.py
     "ingested_at",
@@ -79,18 +83,23 @@ EXPECTED_COLUMNS = [
     "source_month"
 ]
 
-# Expected row count range per month
-MIN_ROWS_PER_MONTH = 100_000     
-MAX_ROWS_PER_MONTH = 6_000_000   
+# Expected row count range per year
+MIN_ROWS_PER_YEAR = 1_000_000     
+MAX_ROWS_PER_YEAR = 5_000_000   
 
 EXPECTED_NON_NULL_PERCENTAGE = 0.9
+
 COLUMNS_TO_CHECK_NULLS = [
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime",
-    "fare_amount",
-    "trip_distance",
-    "ingested_at", 
-    "source_file", 
+    "STATION",
+    "DATE",
+    "DEWP",
+    "WDSP",
+    "TEMP", 
+    "MXSPD",
+    "MAX",
+    "MIN",
+    "VISIB",
+    "PRCP", 
     "source_year", 
     "source_month"
 ]
@@ -99,7 +108,7 @@ COLUMNS_TO_CHECK_NULLS = [
 # HELPER FUNCTIONS
 # ---------------------------------------------------------------------------
 
-def load_bronze_month(year: int, month: int) -> pd.DataFrame:
+def load_bronze_year(year: int) -> pd.DataFrame:
     try:
         dt = DeltaTable(BRONZE_URI, storage_options=STORAGE_OPTIONS)
         
@@ -108,7 +117,6 @@ def load_bronze_month(year: int, month: int) -> pd.DataFrame:
         arrow_table = dt.to_pyarrow_table(
             filters=[
                 ("source_year", "=", year),
-                ("source_month", "=", month),
             ]
         )
 
@@ -116,13 +124,13 @@ def load_bronze_month(year: int, month: int) -> pd.DataFrame:
     
     except Exception as e:
         raise RuntimeError(
-            f"No Bronze data found for {year}-{month:02d}. "
-            f"Could not partition table on audit 'source_year' and 'source_month' columns"
-            f"Run bronze_ingest.py --year {year} --month {month} first.\nError: {e}"
+            f"No Bronze data found for {year}. "
+            f"Could not partition table on audit 'source_year'columns"
+            f"Run python ingestion/weather/bronze_ingestion.py --year-start {year} --year-end {year} first.\nError: {e}"
         )
 
-def save_validation_report(result: CheckpointResult, year: int, month: int):
-    report_name    = f"{year}_{month:02d}.json"
+def save_validation_report(result: CheckpointResult, year: int):
+    report_name    = f"{year}.json"
     report_content = json.dumps(result.describe_dict(), indent=2, default=str)
 
     s3_client = boto3.client(
@@ -135,7 +143,7 @@ def save_validation_report(result: CheckpointResult, year: int, month: int):
 
     s3_client.put_object(
         Bucket      = "artifacts",
-        Key         = f"great_expectations/reports/taxi/bronze/{report_name}",
+        Key         = f"great_expectations/reports/weather/bronze/{report_name}",
         Body        = report_content.encode("utf-8"),
         ContentType = "application/json",
     )
@@ -143,9 +151,9 @@ def save_validation_report(result: CheckpointResult, year: int, month: int):
     print(f"\n  Report saved : {REPORT_URI}/{report_name}")
     print(f"  {'=' * 55}")
 
-def print_validation_report(result: CheckpointResult, year: int, month: int):
+def print_validation_report(result: CheckpointResult, year: int):
     print(f"\n  {'=' * 55}")
-    print(f"  BRONZE VALIDATION — {calendar.month_name[month]} {year}")
+    print(f"  BRONZE VALIDATION —  {year}")
     print(f"  {'=' * 55}")
 
     validation_results = list(result.run_results.values())
@@ -184,8 +192,8 @@ def build_bronze_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 
     suite.add_expectation(
         gx.expectations.ExpectTableRowCountToBeBetween(
-            min_value=MIN_ROWS_PER_MONTH,
-            max_value=MAX_ROWS_PER_MONTH,
+            min_value=MIN_ROWS_PER_YEAR,
+            max_value=MAX_ROWS_PER_YEAR,
         )
     )
 
@@ -210,26 +218,19 @@ def build_bronze_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 
 def main():
     parser = argparse.ArgumentParser(description="Run Bronze validation suite for NYC Taxi data")
-    parser.add_argument("--year",  type=int, default=2023, help="Year to validate (default: 2023)")
-    parser.add_argument("--month-start", type=int, default=None, help="First month in range. Omit for full year")
-    parser.add_argument("--month-end", type=int, default=None, help="Last month in range. Omit for full year")
+    parser.add_argument("--year-start", type=int, default=2023, help="First year in range")
+    parser.add_argument("--year-end",   type=int, default=2023, help="Last year in range")
 
     args = parser.parse_args()
 
-    #Make the month range from arguments
-    if args.month_start is not None and args.month_end is not None:
-        if(args.month_start > args.month_end):
-            print(f"ERROR: Month start range ({args.month_start}) is greater than month end range({args.month_end})")
+    # Build the year range
+    if args.year_start > args.year_end:
+            print(f"ERROR: Year start ({args.year_start}) is greater than year end ({args.year_end})")
             exit(1)
+    years = range(args.year_start, args.year_end + 1)
 
-        months = range(args.month_start, args.month_end + 1)
-    else:
-        months = range(1, 13)
-    
-    year = args.year
-
-    print(f"\nNYC Taxi Bronze Validation Suite")
-    print(f"Year: {year} | Months: {', '.join(calendar.month_name[m] for m in months)}")
+    print(f"\nNOAA Weather Bronze Validation Suite")
+    print(f"Years: {', '.join(str(y) for y in years)}")
 
     #This stores our validation checks telling us what passed and failed
     results = {"passed": [], "failed": []}
@@ -239,64 +240,63 @@ def main():
     context = gx.get_context()
 
     #Register the data source
-    data_source = context.data_sources.add_pandas(name="bronze_taxi")
-    data_asset = data_source.add_dataframe_asset(name="bronze_monthly_batch")
+    data_source = context.data_sources.add_pandas(name="bronze_weather")
+    data_asset = data_source.add_dataframe_asset(name="bronze_yearly_batch")
 
+    for year in years:
+        print(f"Beginning validation of year {year}")
 
-    for month in months:
-        print(f"Beginning validation of month {calendar.month_name[month]} for year {year}")
-
-        print(f"Fetching delta table from Minio Bronze Bucket on 'source_year' and 'source_month' partition ")
+        print(f"Fetching delta table from Minio Bronze Bucket on 'source_year' partition ")
 
         try:
-            pandas_df = load_bronze_month(year, month)
+            pandas_df = load_bronze_year(year)
             print(f"✅ Successfully Loaded delta table from Minio Bronze Bucket")
         except RuntimeError as e:
             print(f"  [ERROR] {e}")
-            results["failed"].append(f"{year}_{month:02d}")
+            results["failed"].append(f"{year}")
             continue
+        
+        #Attach our defined suite to the context
+        suite = build_bronze_suite(context, f"bronze_weather_{year}")
 
         #Cleanup old batch definitions before creating this one
         #This is important for any re runs that ever happen
         try:
-            data_asset.batch_definitions.delete(f"bronze_taxi_{year}_{month:02d}")
-        except Exception:
-            pass
-
-        #Attach our defined suite to the context
-        suite = build_bronze_suite(context, f"bronze_taxi_{year}_{month:02d}")
-
-        # Add cleanup before each registration by deleting old
-        # validation definitions and checkpoints
-        #This is important for any re runs that ever happen
-        try:
-            context.validation_definitions.delete(f"bronze_validation_{year}_{month:02d}")
-        except Exception:
-            pass
-
-        try:
-            context.checkpoints.delete(f"bronze_checkpoint_{year}_{month:02d}")
+            data_asset.batch_definitions.delete(f"bronze_{year}")
         except Exception:
             pass
 
         #Register the batch for the suite
         batch_definition = data_asset.add_batch_definition_whole_dataframe(
-            f"bronze_{year}_{month:02d}"
+            f"bronze_{year}"
         )
+
+        # Cleanup before each registration by deleting old
+        # validation definitions and checkpoints
+        #This is important for any re runs that ever happen
+        try:
+            context.validation_definitions.delete(f"bronze_validation_{year}")
+        except Exception:
+            pass
+
+        try:
+            context.checkpoints.delete(f"bronze_checkpoint_{year}")
+        except Exception:
+            pass
 
         #Link the batch to the suite
         validation_definition = context.validation_definitions.add(
             gx.ValidationDefinition(
-                name = f"bronze_validation_{year}_{month:02d}",
+                name = f"bronze_validation_{year}",
                 data = batch_definition,
                 suite = suite,
             )
         )
 
-        #Create checkpoints between each month batch
+        #Create checkpoints between each year batch
         checkpoint = context.checkpoints.add(
             gx.Checkpoint(
-                name = f"bronze_checkpoint_{year}_{month:02d}",
+                name = f"bronze_checkpoint_{year}",
                 validation_definitions = [validation_definition],
                 result_format = {"result_format": "SUMMARY"},
             )
@@ -308,23 +308,23 @@ def main():
         )
 
         #Prints the report to the screen
-        print_validation_report(result, year, month)
+        print_validation_report(result, year)
 
         #Saves the validation report as a json file
-        save_validation_report(result, year, month)
+        save_validation_report(result, year)
 
         if result.success:
-            results["passed"].append(f"{year}_{month:02d}")
+            results["passed"].append(f"{year}")
         else:
-            results["failed"].append(f"{year}_{month:02d}")
+            results["failed"].append(f"{year}")
             
 
     #Print overall summary of the validation
     print(f"\n{'=' * 55}")
     print(f"BRONZE VALIDATION COMPLETE")
     print(f"{'=' * 55}")
-    print(f"  Passed : {len(results['passed'])} month/s")
-    print(f"  Failed : {len(results['failed'])} month/s")
+    print(f"  Passed : {len(results['passed'])} year/s")
+    print(f"  Failed : {len(results['failed'])} year/s")
 
     if results["failed"]:
         print(f"  Failed : {', '.join(results['failed'])}")

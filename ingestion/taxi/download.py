@@ -18,6 +18,7 @@ import calendar
 import argparse
 import requests
 from tqdm import tqdm
+
 import pyarrow.fs as pafs
 
 # ---------------------------------------------------------------------------
@@ -107,7 +108,7 @@ def main():
                     total      = total_size,
                     unit       = "B",
                     unit_scale = True,
-                    desc       = f"yellow_tripdata_{year}-{month:02d}.parquet"
+                    desc       = f"{year}-{month:02d}.parquet"
                 ) as bar:
                     for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
                         if chunk:
