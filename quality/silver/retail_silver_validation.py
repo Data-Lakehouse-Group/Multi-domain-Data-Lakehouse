@@ -1,7 +1,8 @@
 """
 Silver Validation: Instacart Retail
 ===================================
-Validates Silver Parquet for cleanliness, referential integrity, and business rules.
+Validates Silver Parquet for cleanliness, referential integrity,
+and business rules. Updated to cover new derived columns.
 """
 
 import os
@@ -23,7 +24,9 @@ REPORT_DIR = Path("quality/reports/silver/retail")
 
 EXPECTED_COLUMNS = [
     "order_id", "product_id", "add_to_cart_order", "reordered",
-    "product_name", "aisle_name", "department_name", "silver_processed_at"
+    "product_name", "aisle_name", "department_name",
+    "silver_processed_at", "bronze_ingested_at", "source_file",
+    "reordered_flag", "is_first_item"
 ]
 
 def get_s3_client():
@@ -48,7 +51,7 @@ def run():
 
     suite = context.suites.add(gx.ExpectationSuite(name="silver_retail"))
 
-    # Row count should be ~32 million (full dataset) or reasonable subset
+    # Row count should be ~32 million (full dataset)
     suite.add_expectation(
         gx.expectations.ExpectTableRowCountToBeBetween(min_value=30_000_000, max_value=35_000_000)
     )
@@ -71,6 +74,14 @@ def run():
     )
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeInSet(column="reordered", value_set=[0, 1])
+    )
+
+    # New boolean columns should be 0/1
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(column="reordered_flag", value_set=[0, 1])
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(column="is_first_item", value_set=[0, 1])
     )
 
     # Check that product names are not empty strings
