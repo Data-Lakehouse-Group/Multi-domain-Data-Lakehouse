@@ -12,7 +12,7 @@ Input:  data/raw/weather/{year}.tar.gz
 Output: s3://bronze/weather/ (Delta table in MinIO)
  
 Usage:
-    python ingestion/weather/ingestion.py                                    # Ingests 2023 by default
+    python ingestion/weather/bronze_ingestion.py                                    # Ingests 2023 by default
     python ingestion/weather/bronze_ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
 """
 
