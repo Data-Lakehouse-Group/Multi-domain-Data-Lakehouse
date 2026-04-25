@@ -22,10 +22,11 @@ import os
 import argparse
 import calendar
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pyarrow.fs as pafs
+
 from deltalake import DeltaTable, write_deltalake
 from deltalake.exceptions import TableNotFoundError
 
@@ -33,9 +34,8 @@ from deltalake.exceptions import TableNotFoundError
 # CONFIG
 # ---------------------------------------------------------------------------
 
-OUTPUT_DIR_DEBUG    = Path("data/raw/taxi")
-OUTPUT_DIR_PROD     = Path("/opt/airflow/data/raw/taxi")
-BRONZE_URI = "s3://bronze/taxi/yellow_tripdata"
+SOURCE_URI    = "raw/taxi"
+BRONZE_URI = "s3://bronze/taxi"
 
 # MinIO connection
 STORAGE_OPTIONS = {
@@ -50,20 +50,47 @@ STORAGE_OPTIONS = {
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def build_source_path(year: int, month: int, is_debug: bool) -> Path:
-    if is_debug:
-        return OUTPUT_DIR_DEBUG / f"yellow_tripdata_{year}-{month:02d}.parquet"
-    else:
-        return OUTPUT_DIR_PROD / f"yellow_tripdata_{year}-{month:02d}.parquet"
+def get_s3_filesystem() -> pafs.S3FileSystem:
+    endpoint = STORAGE_OPTIONS["endpoint_url"].replace("http://", "").replace("https://", "")
+    scheme   = "https" if STORAGE_OPTIONS.get("aws_use_ssl", "false") == "true" else "http"
 
-def add_audit_columns(table: pa.Table, source_file: str, year : int, month: int) -> pa.Table:
+    return pafs.S3FileSystem(
+        endpoint_override = endpoint,
+        access_key        = STORAGE_OPTIONS["aws_access_key_id"],
+        secret_key        = STORAGE_OPTIONS["aws_secret_access_key"],
+        scheme            = scheme,
+    )
+
+def file_exists_in_minio(fs: pafs.S3FileSystem, path: str) -> bool:
+    try:
+        info = fs.get_file_info(path)
+        return info.type != pafs.FileType.NotFound
+    except Exception:
+        return False
+
+def read_source_file(year: int, month: int) -> pa.Table:
+    filename = f"{year}-{month:02d}.parquet"
+    path     = f"{SOURCE_URI}/{filename}"
+    fs       = get_s3_filesystem()
+
+    if not file_exists_in_minio(fs, path):
+        raise FileNotFoundError(
+            f"Source file not found: s3://{path}\n"
+            f"Run download.py --year {year} --month-start {month} --month-end {month} first."
+        )
+
+    print(f"Reading from s3://{SOURCE_URI}")
+    return pq.read_table(path, filesystem=fs)
+
+def add_audit_columns(table: pa.Table, year : int, month: int) -> pa.Table:
     num_rows = table.num_rows
     now = datetime.now(timezone.utc)
+    source_path = f"{SOURCE_URI}/{year}-{month:02d}.parquet"
  
     return (
         table
         .append_column("ingested_at",  pa.array([now] * num_rows, type=pa.timestamp("us", tz="UTC")))
-        .append_column("source_file",  pa.array([source_file] * num_rows, type=pa.string()))
+        .append_column("source_file",  pa.array([source_path] * num_rows, type=pa.string()))
         .append_column("source_year",  pa.array([year] * num_rows, type=pa.int16()))
         .append_column("source_month", pa.array([month] * num_rows, type=pa.int8()))
     )
@@ -84,7 +111,6 @@ def main():
     parser.add_argument("--year",  type=int, default=2023, help="Year to download (default: 2023)")
     parser.add_argument("--month-start", type=int, default=None, help="First month in range. Omit for full year")
     parser.add_argument("--month-end", type=int, default=None, help="Last month in range. Omit for full year")
-    parser.add_argument("--debug" ,action="store_true", help="Set to true if running locally")
 
 
     args = parser.parse_args()
@@ -102,25 +128,21 @@ def main():
     year = args.year
 
     for month in months:
-        source_path = build_source_path(year, month, args.debug)
         month_name = calendar.month_name[month]
-
-        #Check if the files have already been downloaded before being ingested into minio
-        if not source_path.exists():
-            print(f"  ERROR: Source file not found: {source_path}")
-            print(f"  Run download.py first for {year}-{month:02d} NYC Taxi Data \n")
-            continue
 
         print(f"\nBeginning ingestion of {month_name} {year} NYC taxi data")
 
         try:
-            taxi_data = pq.read_table(source_path)
+            #Check if the files have already been downloaded before being ingested into minio
+            taxi_data = read_source_file(year, month)
+
             row_count   = taxi_data.num_rows
             print(f"Rows read: {row_count:,}")
- 
-            # Add audit columns before writing, this will be used for time travel queries
-            taxi_data = add_audit_columns(taxi_data, source_path.name, year, month)
 
+            print(f"Adding audit columns...")
+            # Add audit columns before writing, this will be used for time travel queries
+            taxi_data = add_audit_columns(taxi_data, year, month)
+            print(f"Successfully added audit columns")
 
             if table_exists(BRONZE_URI):
                 write_deltalake(
@@ -141,9 +163,9 @@ def main():
                     storage_options= STORAGE_OPTIONS,
                 )
 
-            print(f"Successfully ingested {row_count:,} rows for {month_name} {year} NYC Taxi Dataset \n")
+            print(f"[OK] Successfully ingested {row_count:,} rows for {month_name} {year} NYC Taxi Dataset \n")
         except Exception as e:
-            print(f"ERROR: Failed to ingest {month_name} {year} NYC taxi data: {e} \n")
+            print(f"[ERROR]: Failed to ingest {month_name} {year} NYC taxi data: {e} \n")
             
 
 if __name__ == "__main__":

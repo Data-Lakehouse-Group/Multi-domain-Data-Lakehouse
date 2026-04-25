@@ -41,7 +41,8 @@ services:
       mc mb --ignore-existing local/silver;
       mc mb --ignore-existing local/gold;
       mc mb --ignore-existing local/artifacts;
-      echo 'Buckets created: bronze, silver, gold, artifacts';
+      mc mb --ignore-existing local/raw;
+      echo 'Buckets created: bronze, silver, gold, artifacts, raw';
       exit 0;
       "
     networks:

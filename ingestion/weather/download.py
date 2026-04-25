@@ -46,22 +46,17 @@ def build_destination_path(year: int) -> Path:
 
 def main():
     parser = argparse.ArgumentParser(description="Download NOAA GSOD weather archive files")
-    parser.add_argument("--year",       type=int, default=2023, help="Single year to download (default: 2023)")
-    parser.add_argument("--year-start", type=int, default=None, help="First year in range")
-    parser.add_argument("--year-end",   type=int, default=None, help="Last year in range")
+    parser.add_argument("--year-start", type=int, default=2023, help="First year in range")
+    parser.add_argument("--year-end",   type=int, default=2023, help="Last year in range")
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Build the year range
-    if args.year_start and args.year_end:
-        if args.year_start > args.year_end:
+    if args.year_start > args.year_end:
             print(f"ERROR: Year start ({args.year_start}) is greater than year end ({args.year_end})")
             exit(1)
-        years = range(args.year_start, args.year_end + 1)
-    else:
-        #Default to just the given year if no range given
-        years = [args.year]
+    years = range(args.year_start, args.year_end + 1)
 
     total_file_size = 0
 
