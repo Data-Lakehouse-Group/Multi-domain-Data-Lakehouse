@@ -29,7 +29,7 @@ SELECT
 
     -- Derived: date dimensions
     season_northern,
-    day_of_week,
+    day_name,
     is_weekend,
 
     -- Derived: unit conversions (Celsius)
