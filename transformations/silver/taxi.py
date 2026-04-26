@@ -126,9 +126,10 @@ def apply_quality_checks_and_enrich(
                 -- Rule 5: Pickup must be before dropoff
                 AND tpep_pickup_datetime < tpep_dropoff_datetime
 
-                -- Rule 6: Reasonable trip duration (at least 1 minute)
+                -- Rule 6: Reasonable trip duration (1 min or less than 24 hours)
                 AND DATEDIFF('minute', tpep_pickup_datetime, tpep_dropoff_datetime) >= 1
-
+                AND DATEDIFF('minute', tpep_pickup_datetime, tpep_dropoff_datetime) <= 1440
+                
                 -- Rule 7: Record must belong to the correct year and month
                 AND YEAR(tpep_pickup_datetime)  = {year}
                 AND MONTH(tpep_pickup_datetime) = {month}

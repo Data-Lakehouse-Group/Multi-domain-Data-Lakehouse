@@ -12,6 +12,8 @@ SELECT
     source_year,
     source_month,
     pickup_day_of_week,
+    is_weekend,
+    day_name, 
 
     -- Volume metrics
     COUNT(*)                    AS total_trips,
@@ -54,5 +56,7 @@ GROUP BY
     pickup_date,
     source_year,
     source_month,
-    pickup_day_of_week
+    pickup_day_of_week,
+    day_name,
+    is_weekend
 ORDER BY pickup_date

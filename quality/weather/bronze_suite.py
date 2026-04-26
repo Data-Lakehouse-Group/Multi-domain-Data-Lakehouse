@@ -15,7 +15,6 @@ Usage:
 """
 
 import os
-import calendar
 import argparse
 import boto3
 import json
@@ -190,6 +189,9 @@ def build_bronze_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 
     suite = context.suites.add(gx.ExpectationSuite(name=suite_name))
 
+    # ------------------------------------------------------------------
+    # Rule 1: Row count
+    # ------------------------------------------------------------------
     suite.add_expectation(
         gx.expectations.ExpectTableRowCountToBeBetween(
             min_value=MIN_ROWS_PER_YEAR,
@@ -197,10 +199,17 @@ def build_bronze_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
         )
     )
 
+    # ------------------------------------------------------------------
+    # Rule 2: All Expected Columns For Pipeline
+    # ------------------------------------------------------------------
     for column in EXPECTED_COLUMNS:
         suite.add_expectation(
             gx.expectations.ExpectColumnToExist(column=column)
         )
+
+    # ------------------------------------------------------------------
+    # Rule 3: Columns do not have too many nulls (data curruption check)
+    # ------------------------------------------------------------------
 
     for column in COLUMNS_TO_CHECK_NULLS:
         suite.add_expectation(

@@ -15,6 +15,7 @@ Usage:
     python ingestion/taxi/gold_ingestion.py --year 2023 --month 2   #Ingests 2023 February
 """
 
+import traceback
 import os
 import argparse
 import calendar
@@ -144,7 +145,10 @@ def ingest_model(
 
     except Exception as e:
         print(f"  [ERROR] Failed to ingest {model_name}: {e}")
-        return False
+        print(f"  Type    : {type(e).__name__}")
+        print(f"  Message : {e}")
+        traceback.print_exc()
+        raise
 
 
 # ---------------------------------------------------------------------------

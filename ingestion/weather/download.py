@@ -15,6 +15,8 @@ Usage:
 Output:
     data/raw/weather/YYYY.tar.gz
 """
+
+import traceback
 import os
 import argparse
 import requests
@@ -118,6 +120,10 @@ def main():
             print(f"[OK] Download completed for file {destination}: ({file_size_mb:.1f} MB)\n")
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] An error occurred while downloading NOAA data for {year}: {e}\n")
+            print(f"  Type    : {type(e).__name__}")
+            print(f"  Message : {e}")
+            traceback.print_exc()
+            raise
 
     print(f"[OK] Download of files completed. Total size of all files downloaded: ({total_file_size:.1f} MB)\n")
 
