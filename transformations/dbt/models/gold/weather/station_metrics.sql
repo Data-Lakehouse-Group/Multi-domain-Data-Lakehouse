@@ -13,6 +13,8 @@ SELECT
     latitude,
     longitude,
     elevation,
+    source_year,
+    source_month,
     COUNT(*)                      AS total_observations,
     MIN(date)                     AS first_observation,
     MAX(date)                     AS last_observation,
@@ -70,6 +72,8 @@ GROUP BY
     station_name,
     latitude,
     longitude,
-    elevation
+    elevation,
+    source_year,
+    source_month
 ORDER BY
     total_observations DESC

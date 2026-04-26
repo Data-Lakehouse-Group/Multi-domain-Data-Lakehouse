@@ -228,7 +228,6 @@ services:
       DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
       DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock #Needed to mount new containers within airflow
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations
@@ -261,7 +260,6 @@ services:
       DBT_LOG_PATH: /opt/airflow/tmp/dbt_logs
       DBT_TARGET_PATH: /opt/airflow//tmp/dbt_target
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock #Needed to mount new containers within airflow
       - ./dags:/opt/airflow/dags
       - ./ingestion:/opt/airflow/ingestion
       - ./transformations:/opt/airflow/transformations

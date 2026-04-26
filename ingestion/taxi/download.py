@@ -13,6 +13,8 @@ Usage: (add --debug at the end of each for local testing)
 Output:
     data/raw/taxi/yellow_tripdata_YYYY-MM.parquet
 """
+
+import traceback
 import os
 import calendar
 import argparse
@@ -126,7 +128,10 @@ def main():
             print(f"[OK] Download completed for file {destination}: ({file_size_mb:.1f} MB)' \n")
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] An error occurred while downloading taxi dataset for {month_name} , {year}: {e} \n")
-            
+            print(f"  Type    : {type(e).__name__}")
+            print(f"  Message : {e}")
+            traceback.print_exc()
+            raise
 
     print(f"[OK] Download of files completed, total size of all files downloaed was: ({total_file_size:.1f} MB)' \n")
 

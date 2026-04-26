@@ -13,8 +13,8 @@ SELECT
     latitude,
     longitude,
     elevation,
-    source_year                                             AS year,
-    source_month                                            AS month,
+    source_year,                                             
+    source_month,                                            
     season_northern,
 
     -- Observation count

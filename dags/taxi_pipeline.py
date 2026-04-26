@@ -24,7 +24,7 @@ from airflow.models import Connection
 # ---------------------------------------------------------------------------
 default_args = {
     "owner"           : "lakehouse",
-    "retries"          : 1000000,           #Retry until successs
+    "retries"          : None,           #Retry until successs
     "retry_delay"      : timedelta(days=1), #Retries everyday
     "email_on_failure": False,
 }
@@ -122,15 +122,15 @@ with DAG(
     # TASK 5 — Validate Silver with Great Expectations
     # Stops pipeline if quality checks fail
     # -----------------------------------------------------------------------
-    # silver_validation = BashOperator(
-    #     task_id      = "silver_validation",
-    #     bash_command = f"""
-    #         python /opt/airflow/quality/validation/taxi/silver_suite.py \
-    #             --year {YEAR} \
-    #             --month-start {MONTH} \
-    #             --month-end {MONTH}
-    #     """,
-    # )
+    silver_validation = BashOperator(
+        task_id      = "silver_validation",
+        bash_command = """
+            python /opt/airflow/quality/taxi/silver_suite.py \
+                --year {{ execution_date.year }} \
+                --month-start {{ execution_date.month }} \
+                --month-end {{ execution_date.month }}
+        """,
+    )
 
     # -----------------------------------------------------------------------
     # TASK 6 — Run dbt staging + intermediate + gold models
@@ -175,7 +175,7 @@ with DAG(
         >> bronze_ingest
         >> bronze_validation
         >> silver_transform
-        # >> silver_validation
+        >> silver_validation
         >> gold_transform
         >> gold_ingest
     )

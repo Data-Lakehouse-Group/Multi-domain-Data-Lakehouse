@@ -17,7 +17,7 @@ Usage: (add --debug at the end of each for local testing)
     python ingestion/taxi/bronze_ingestion.py --year 2023 --month-start 1 --month-end 5   # Ingests January to May for 2023
 """
 
-
+import traceback
 import os
 import argparse
 import calendar
@@ -168,7 +168,10 @@ def main():
             print(f"[OK] Successfully ingested {row_count:,} rows for {month_name} {year} NYC Taxi Dataset \n")
         except Exception as e:
             print(f"[ERROR]: Failed to ingest {month_name} {year} NYC taxi data: {e} \n")
-            
+            print(f"  Type    : {type(e).__name__}")
+            print(f"  Message : {e}")
+            traceback.print_exc()
+            raise
 
 if __name__ == "__main__":
     main()

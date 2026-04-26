@@ -8,13 +8,14 @@ This file facilitates a separation of concerns where dbt only
 handles data aggregation logic while the gold_ingestion.py
 handles the write to MinIO as a Delta Table
 
-Must run AFTER: dbt run --select tag:taxi
+Must run AFTER: dbt run --select tag:weather
 
 Usage:
-    python ingestion/weather/gold_ingestion.py                                    #Defaults to 2023
-    python ingestion/weather/gold_ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
+    python ingestion/weather/gold_ingestion.py              #Defaults to 2023
+    python ingestion/weather/gold_ingestion.py --year 2020  # Ingests a range
 """
 
+import traceback
 import os
 import argparse
 import calendar
@@ -37,20 +38,20 @@ STORAGE_OPTIONS = {
 }
 
 GOLD_MODELS = {
-    "daily_climate_summary": {
-        "view"        : "daily_climate_summary",
-        "write_uri"   : "s3://gold/taxi/daily_climate_summary",
-        "source_uri"  : "s3://artifacts/dbt/taxi/staging/daily_climate_summary.parquet"
+    "daily_climate": {
+        "view"        : "daily_climate",
+        "write_uri"   : "s3://gold/weather/daily_climate",
+        "source_uri"  : "s3://artifacts/dbt/weather/staging/daily_climate.parquet"
     },
-    "monthly_climates": {
-        "view"        : "monthly_climates",
-        "write_uri"   : "s3://gold/taxi/monthly_climates",
-        "source_uri"  : "s3://artifacts/dbt/taxi/staging/monthly_climates.parquet"
+    "monthly_climate": {
+        "view"        : "monthly_climate",
+        "write_uri"   : "s3://gold/weather/monthly_climate",
+        "source_uri"  : "s3://artifacts/dbt/weather/staging/monthly_climate.parquet"
     },
     "station_metrics": {
         "view"        : "station_metrics",
-        "write_uri"   : "s3://gold/taxi/station_metrics",
-        "source_uri"  : "s3://artifacts/dbt/taxi/staging/station_metrics.parquet"
+        "write_uri"   : "s3://gold/weather/station_metrics",
+        "source_uri"  : "s3://artifacts/dbt/weather/staging/station_metrics.parquet"
     }
 }
 
@@ -126,7 +127,10 @@ def ingest_model(
 
     except Exception as e:
         print(f"  [ERROR] Failed to ingest {model_name}: {e}")
-        return False
+        print(f"  Type    : {type(e).__name__}")
+        print(f"  Message : {e}")
+        traceback.print_exc()
+        raise
 
 # ---------------------------------------------------------------------------
 # ENTRYPOINT

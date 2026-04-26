@@ -16,7 +16,9 @@ Usage:
     python ingestion/weather/bronze_ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
 """
 
+import os
 import tarfile
+import traceback
 import tempfile
 import argparse
 from datetime import datetime, timezone
@@ -37,14 +39,14 @@ from deltalake.exceptions import TableNotFoundError
 SOURCE_URI       = "raw/weather"
 BRONZE_URI = "s3://bronze/weather"
 
-# MinIO connection — must match your docker-compose.yml
+# MinIO connection
 STORAGE_OPTIONS = {
-    "endpoint_url"       : "http://localhost:9000",
-    "aws_access_key_id"  : "minioadmin",
-    "aws_secret_access_key": "minioadmin",
-    "region_name"        : "us-east-1",
-    "allow_http"         : "true",          # Required for non-HTTPS MinIO
-    "aws_s3_allow_unsafe_rename": "true",   # Required for Delta Lake on MinIO
+    "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
+    "aws_access_key_id"         : os.getenv("AWS_ACCESS_KEY_ID", "minioadmin"),
+    "aws_secret_access_key"     : os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+    "allow_http"                : "true",
+    "aws_region"                : "us-east-1",
+    "aws_s3_allow_unsafe_rename": "true",
 }
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -123,7 +125,7 @@ def add_audit_columns(table: pa.Table, year : int) -> pa.Table:
 
 def table_exists() -> bool:
     try:
-        DeltaTable(DELTA_TABLE_URI, storage_options=STORAGE_OPTIONS)
+        DeltaTable(BRONZE_URI, storage_options=STORAGE_OPTIONS)
         return True
     except TableNotFoundError:
         return False
@@ -185,7 +187,10 @@ def main():
             print(f"[OK] Successfully ingested {row_count:,} rows for {year}  NOAA Weather Data \n")
         except Exception as e:
             print(f"[ERROR]: Failed to ingest {year}  NOAA Weather Data: {e} \n")
-            
+            print(f"  Type    : {type(e).__name__}")
+            print(f"  Message : {e}")
+            traceback.print_exc()
+            raise
 
 if __name__ == "__main__":
     main()

@@ -14,9 +14,9 @@ SELECT
     longitude,
     elevation,
     date,
-    source_year                 AS year,
-    source_month                AS month,
-    day_of_week,
+    source_year,                 
+    source_month,              
+    day_name,
     is_weekend,
     season_northern,
 
