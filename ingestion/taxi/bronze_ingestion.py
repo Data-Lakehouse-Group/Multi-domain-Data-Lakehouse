@@ -135,7 +135,7 @@ def main():
 
         try:
             #Check if the files have already been downloaded before being ingested into minio
-            taxi_data = read_source_file(year, month)
+            taxi_data = read_source_file(fs, year, month)
 
             row_count   = taxi_data.num_rows
             print(f"Rows read: {row_count:,}")

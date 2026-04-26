@@ -35,7 +35,7 @@ from deltalake.exceptions import TableNotFoundError
 # ---------------------------------------------------------------------------
 
 SOURCE_URI       = "raw/weather"
-DELTA_TABLE_URI = "s3://bronze/weather"
+BRONZE_URI = "s3://bronze/weather"
 
 # MinIO connection — must match your docker-compose.yml
 STORAGE_OPTIONS = {
@@ -165,7 +165,7 @@ def main():
             print("Writing data to Delta Lake in MinIO...")
             if table_exists():
                 write_deltalake(
-                    DELTA_TABLE_URI,
+                    BRONZE_URI,
                     weather_data,
                     mode = 'overwrite',
                     predicate=f"source_year = {year}", #Deletes and rewrites all partitions for this year
@@ -174,7 +174,7 @@ def main():
                 )
             else:
                 write_deltalake(
-                    DELTA_TABLE_URI,
+                    BRONZE_URI,
                     weather_data,
                     mode = 'overwrite',
                     partition_by=["source_year", "source_month"],

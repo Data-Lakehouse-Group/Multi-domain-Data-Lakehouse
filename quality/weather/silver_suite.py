@@ -1,9 +1,9 @@
 """
-NYC Taxi Silver Validation Suite
+NOAA Weather Silver Validation Suite
 ==================================
 Validates that Silver transformation completed successfully through the following:
     - The schema matches our expected silver schema with all derived columns
-    - The rows are between expected bounds per month
+    - The rows are between expected bounds per year
     - Critical columns have non-null values above a given threshold
     - Value ranges are physically plausible
     - Categorical/derived columns contain only valid values
@@ -12,18 +12,15 @@ Validates that Silver transformation completed successfully through the followin
 Runs AFTER silver_transform.py, BEFORE gold layer or dbt models
 
 Usage:
-    python quality/taxi/silver_suite.py
-    python quality/taxi/silver_suite.py --year 2023
-    python quality/taxi/silver_suite.py --year 2023 --month-start 1 --month-end 1
-    python quality/taxi/silver_suite.py --year 2023 --month-start 1 --month-end 6
+    python quality/weather/silver_suite.py
+    python quality/weather/silver_suite.py --year-start 2020 --year-end 2023
 """
 
 import os
-import calendar
 import argparse
-import boto3
 import json
 import sys
+import boto3
 
 import great_expectations as gx
 from great_expectations.checkpoint.checkpoint import CheckpointResult
@@ -37,9 +34,9 @@ from deltalake import DeltaTable
 # CONFIG
 # ---------------------------------------------------------------------------
 
-SILVER_URI = "s3://silver/taxi"
+SILVER_URI = "s3://silver/weather"
 
-REPORT_URI = "s3://artifacts/great_expectations/reports/taxi/silver"
+REPORT_URI = "s3://artifacts/great_expectations/reports/weather/silver"
 
 STORAGE_OPTIONS = {
     "endpoint_url"              : os.getenv("AWS_ENDPOINT_URL", "http://minio:9000"),
@@ -53,25 +50,26 @@ STORAGE_OPTIONS = {
 # Expected silver schema — all original, derived, and audit columns
 EXPECTED_COLUMNS = [
     # Original columns (optimised types)
-    "VendorID",
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime",
-    "passenger_count",
-    "trip_distance",
-    "PULocationID",
-    "DOLocationID",
-    "payment_type",
-    "fare_amount",
-    "extra",
-    "mta_tax",
-    "tip_amount",
-    "tolls_amount",
-    "improvement_surcharge",
-    "total_amount",
-    "congestion_surcharge",
-    "airport_fee",
-    "store_and_fwd_flag",
-    "RatecodeID",
+    "STATION",
+    "DATE",
+    "LATITUDE",
+    "LONGITUDE",
+    "ELEVATION",
+    "NAME",
+
+    # Core weather metrics (sentinel-cleaned)
+    "TEMP",
+    "DEWP",
+    "SLP",
+    "STP",
+    "VISIB",
+    "WDSP",
+    "MXSPD",
+    "GUST",
+    "MAX",
+    "MIN",
+    "PRCP",
+    "SNDP",
 
     # Bronze audit columns (passed through)
     "source_year",
@@ -79,96 +77,89 @@ EXPECTED_COLUMNS = [
     "source_file",
     "ingested_at",
 
-    # Derived columns
-    "trip_duration_minutes",
-    "pickup_day_of_week",
-    "trip_speed_mph",
-    "pickup_hour",
-    "payment_method",
-    "day_name",
+    # Derived: date dimensions
+    "season_northern",
     "is_weekend",
-    "pickup_date",
+    "day_name",
+
+    # Derived: unit conversions
+    "temp_c",
+    "max_temp_c",
+    "min_temp_c",
+    "wdsp_kmh",
+    "mxspd_kmh",
+    "gust_kmh",
+
+    # Derived: weather event flags
+    "is_freezing",
+    "is_extreme_heat",
+    "has_precipitation",
+    "is_gale",
 
     # Silver audit column
     "processed_at",
 ]
 
-# Row count bounds — silver will always be <= bronze due to cleaning
-MIN_ROWS_PER_MONTH = 80_000
-MAX_ROWS_PER_MONTH = 6_000_000
+# Row count bounds (Less rows are expected)
+MIN_ROWS_PER_YEAR = 800_000
+MAX_ROWS_PER_YEAR = 5_000_000
 
 # Null thresholds
-EXPECTED_NON_NULL_PERCENTAGE        = 1  # critical columns
-EXPECTED_NON_NULL_PERCENTAGE_SOFT   = 0.75  # optional/sparse columns
+EXPECTED_NON_NULL_PERCENTAGE = 1   # critical columns (Should not be null after cleaning)
+EXPECTED_NON_NULL_PERCENTAGE_SOFT = 0.75  # optional columns (GUST, SNDP etc.)
 
 COLUMNS_CRITICAL_NOT_NULL = [
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime",
-    "PULocationID",
-    "DOLocationID",
-    "fare_amount",
-    "trip_distance",
-    "passenger_count",
-    "payment_type",
-    "trip_duration_minutes",
-    "pickup_day_of_week",
-    "pickup_hour",
-    "payment_method",
-    "day_name",
-    "is_weekend",
-    "pickup_date",
+    "STATION",
+    "DATE",
+    "TEMP",
+    "WDSP",
+    "VISIB",
+    "PRCP",
+    "LATITUDE",
+    "LONGITUDE",
+
+    #All derived columns
     "source_year",
     "source_month",
+    "source_file",
+    "ingested_at",
+    "season_northern",
+    "day_name",
+    "is_weekend",
+    "is_freezing",
+    "is_extreme_heat",
+    "has_precipitation",
+    "is_gale",
+    "temp_c",
     "processed_at",
 ]
 
 COLUMNS_SOFT_NOT_NULL = [
-    "VendorID",
-    "RatecodeID",
-    "store_and_fwd_flag",
-    "congestion_surcharge",
-    "airport_fee",
-    "trip_speed_mph",     # null when duration is zero
-]
-
-# Validation thresholds — must match silver_transform.py constants
-MIN_FARE          = 0.0
-MAX_FARE          = 500.0
-MIN_TRIP_DISTANCE = 0.0
-MIN_PASSENGERS    = 1
-MAX_PASSENGERS    = 6
-
-VALID_PAYMENT_METHODS = [
-    "Credit Card",
-    "Cash",
-    "No Charge",
-    "Dispute",
-    "Unknown",
-    "Voided",
-]
-
-VALID_DAY_NAMES = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+    "DEWP",
+    "SLP",
+    "STP",
+    "MXSPD",
+    "GUST",
+    "MAX",
+    "MIN",
+    "SNDP",
+    "max_temp_c",
+    "min_temp_c",
+    "mxspd_kmh",
+    "gust_kmh",
 ]
 
 # ---------------------------------------------------------------------------
 # HELPER FUNCTIONS
 # ---------------------------------------------------------------------------
 
-def load_silver_month(year: int, month: int) -> pd.DataFrame:
+def load_silver_year(year: int) -> pd.DataFrame:
     try:
         dt = DeltaTable(SILVER_URI, storage_options=STORAGE_OPTIONS)
 
         arrow_table = dt.to_pyarrow_table(
             filters=[
-                ("source_year",  "=", year),
-                ("source_month", "=", month),
+                ("source_year", "=", year),
             ]
         )
 
@@ -176,14 +167,13 @@ def load_silver_month(year: int, month: int) -> pd.DataFrame:
 
     except Exception as e:
         raise RuntimeError(
-            f"No Silver data found for {year}-{month:02d}. "
-            f"Run python transformations/silver/taxi.py --year {year} "
-            f"--month-start {month} --month-end {month} first.\nError: {e}"
+            f"No Silver data found for {year}. "
+            f"Run python transformations/silver/weather.py --year-start {year} --year-end {year} first.\nError: {e}"
         )
 
 
-def save_validation_report(result: CheckpointResult, year: int, month: int):
-    report_name    = f"{year}_{month:02d}.json"
+def save_validation_report(result: CheckpointResult, year: int):
+    report_name    = f"{year}.json"
     report_content = json.dumps(result.describe_dict(), indent=2, default=str)
 
     s3_client = boto3.client(
@@ -196,7 +186,7 @@ def save_validation_report(result: CheckpointResult, year: int, month: int):
 
     s3_client.put_object(
         Bucket      = "artifacts",
-        Key         = f"great_expectations/reports/taxi/silver/{report_name}",
+        Key         = f"great_expectations/reports/weather/silver/{report_name}",
         Body        = report_content.encode("utf-8"),
         ContentType = "application/json",
     )
@@ -205,9 +195,9 @@ def save_validation_report(result: CheckpointResult, year: int, month: int):
     print(f"  {'=' * 55}")
 
 
-def print_validation_report(result: CheckpointResult, year: int, month: int):
+def print_validation_report(result: CheckpointResult, year: int):
     print(f"\n  {'=' * 55}")
-    print(f"  SILVER VALIDATION — {calendar.month_name[month]} {year}")
+    print(f"  SILVER VALIDATION — {year}")
     print(f"  {'=' * 55}")
 
     validation_results = list(result.run_results.values())
@@ -246,12 +236,11 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 
     # ------------------------------------------------------------------
     # Rule 1: Row count
-    # Silver rows will always be <= bronze due to cleaning rules
     # ------------------------------------------------------------------
     suite.add_expectation(
         gx.expectations.ExpectTableRowCountToBeBetween(
-            min_value=MIN_ROWS_PER_MONTH,
-            max_value=MAX_ROWS_PER_MONTH,
+            min_value=MIN_ROWS_PER_YEAR,
+            max_value=MAX_ROWS_PER_YEAR,
         )
     )
 
@@ -264,7 +253,7 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
         )
 
     # ------------------------------------------------------------------
-    # Rule 3: Null checks — critical columns (no null)
+    # Rule 3: Null checks — critical columns (100% non-null)
     # ------------------------------------------------------------------
     for column in COLUMNS_CRITICAL_NOT_NULL:
         suite.add_expectation(
@@ -276,7 +265,7 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 
     # ------------------------------------------------------------------
     # Rule 4: Null checks — soft columns (75% non-null)
-    # Optional fields like airport_fee, trip_speed_mph are legitimately sparse
+    # Optional fields like GUST, SNDP are legitimately sparse
     # ------------------------------------------------------------------
     for column in COLUMNS_SOFT_NOT_NULL:
         suite.add_expectation(
@@ -287,75 +276,67 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
         )
 
     # ------------------------------------------------------------------
-    # Rule 5: Value range checks — must match silver_transform.py thresholds
+    # Rule 5: Geospatial range checks (Ensuring Silver Cleaning Worked)
     # ------------------------------------------------------------------
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(
-            column="fare_amount",
-            min_value=MIN_FARE,
-            max_value=MAX_FARE,
+            column="LATITUDE", min_value=-90, max_value=90,
         )
     )
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(
-            column="trip_distance",
-            min_value=MIN_TRIP_DISTANCE,
-            max_value=None,             # no upper bound enforced in transform
+            column="LONGITUDE", min_value=-180, max_value=180,
         )
     )
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeBetween(
-            column="passenger_count",
-            min_value=MIN_PASSENGERS,
-            max_value=MAX_PASSENGERS,
-        )
-    )
-    suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeBetween(
-            column="trip_duration_minutes",
-            min_value=1,                # enforced by Rule 6 in transform
-            max_value=1440,             # 24 hours — anything longer is suspect
-        )
-    )
-    suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeBetween(
-            column="pickup_hour",
-            min_value=0,
-            max_value=23,
-        )
-    )
-    suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeBetween(
-            column="pickup_day_of_week",
-            min_value=0,
-            max_value=7,
+            column="ELEVATION", min_value=-500, max_value=9000,
         )
     )
 
     # ------------------------------------------------------------------
-    # Rule 6: Pickup must always be before dropoff
+    # Rule 6: Physical plausibility — weather metric ranges
+    # Sentinel values already removed; anything left must be real
+    # (Ensuring Silver Cleaning Worked)
     # ------------------------------------------------------------------
     suite.add_expectation(
-        gx.expectations.ExpectColumnPairValuesAToBeGreaterThanB(
-            column_A="tpep_dropoff_datetime",
-            column_B="tpep_pickup_datetime",
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="TEMP", min_value=-129, max_value=135,
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="temp_c", min_value=-89, max_value=57,
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="WDSP", min_value=0, max_value=200,
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="wdsp_kmh", min_value=0, max_value=370,
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="PRCP", min_value=0, max_value=30,
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="VISIB", min_value=0, max_value=999,
         )
     )
 
     # ------------------------------------------------------------------
     # Rule 7: Categorical set checks — derived columns
-    # Any broken CASE logic in the transform shows up here immediately
     # ------------------------------------------------------------------
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeInSet(
-            column="payment_method",
-            value_set=VALID_PAYMENT_METHODS,
-        )
-    )
-    suite.add_expectation(
-        gx.expectations.ExpectColumnValuesToBeInSet(
-            column="day_name",
-            value_set=VALID_DAY_NAMES,
+            column="season_northern",
+            value_set=["winter", "spring", "summer", "fall"],
         )
     )
     suite.add_expectation(
@@ -366,8 +347,56 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
     )
     suite.add_expectation(
         gx.expectations.ExpectColumnValuesToBeInSet(
+            column="is_freezing",
+            value_set=[True, False],
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="is_extreme_heat",
+            value_set=[True, False],
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="has_precipitation",
+            value_set=[True, False],
+        )
+    )
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="is_gale",
+            value_set=[True, False],
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # Rule 8: Ensuring data is present for each month in the year
+    # Will result in incomplete pipeline running later on
+    # ------------------------------------------------------------------
+    
+    #Within appropriate range
+    suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
             column="source_month",
             value_set=list(range(1, 13)),
+        )
+    )
+
+    #There are 12 unique values
+    suite.add_expectation(
+        gx.expectations.ExpectColumnUniqueValueCountToBeBetween(
+            column="source_month",
+            min_value=12,
+            max_value=12,
+        )
+    )
+    # ------------------------------------------------------------------
+    # Rule 9: Uniqueness — one record per station per day
+    # ------------------------------------------------------------------
+    suite.add_expectation(
+        gx.expectations.ExpectCompoundColumnsToBeUnique(
+            column_list=["STATION", "DATE"],
         )
     )
 
@@ -379,26 +408,21 @@ def build_silver_suite(context: AbstractDataContext, suite_name: str) -> gx.Expe
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Silver validation suite for NYC Taxi data")
-    parser.add_argument("--year",        type=int, default=2023, help="Year to validate (default: 2023)")
-    parser.add_argument("--month-start", type=int, default=None, help="First month in range. Omit for full year")
-    parser.add_argument("--month-end",   type=int, default=None, help="Last month in range. Omit for full year")
+    parser = argparse.ArgumentParser(description="Run Silver validation suite for NOAA Weather data")
+    parser.add_argument("--year-start", type=int, default=2023, help="First year in range")
+    parser.add_argument("--year-end",   type=int, default=2023, help="Last year in range")
 
     args = parser.parse_args()
 
-    #Make the month range from arguments
-    if args.month_start is not None and args.month_end is not None:
-        if args.month_start > args.month_end:
-            print(f"ERROR: Month start ({args.month_start}) is greater than month end ({args.month_end})")
-            exit(1)
-        months = range(args.month_start, args.month_end + 1)
-    else:
-        months = range(1, 13)
+    # Build the year range
+    if args.year_start > args.year_end:
+        print(f"ERROR: Year start ({args.year_start}) is greater than year end ({args.year_end})")
+        exit(1)
 
-    year = args.year
+    years = range(args.year_start, args.year_end + 1)
 
-    print(f"\nNYC Taxi Silver Validation Suite")
-    print(f"Year: {year} | Months: {', '.join(calendar.month_name[m] for m in months)}")
+    print(f"\nNOAA Weather Silver Validation Suite")
+    print(f"Years: {', '.join(str(y) for y in years)}")
 
     #This stores our validation checks telling us what passed and failed
     results = {"passed": [], "failed": []}
@@ -407,63 +431,64 @@ def main():
     #Ensures it is not persisted to the disk
     context     = gx.get_context()
 
-    #Register the data source
-    data_source = context.data_sources.add_pandas(name="silver_taxi")
-    data_asset  = data_source.add_dataframe_asset(name="silver_monthly_batch")
 
-    for month in months:
-        print(f"\nBeginning validation of {calendar.month_name[month]} {year}")
-        print(f"Fetching delta table from MinIO Silver Bucket on 'source_year' and 'source_month' partition...")
+    #Register the data source
+    data_source = context.data_sources.add_pandas(name="silver_weather")
+    data_asset  = data_source.add_dataframe_asset(name="silver_yearly_batch")
+
+    for year in years:
+        print(f"\nBeginning validation of year {year}")
+        print(f"Fetching delta table from MinIO Silver Bucket on 'source_year' partition...")
 
         try:
-            pandas_df = load_silver_month(year, month)
+            pandas_df = load_silver_year(year)
             print(f"✅ Successfully loaded Silver delta table — {pandas_df.shape[0]:,} rows")
         except RuntimeError as e:
             print(f"  [ERROR] {e}")
-            results["failed"].append(f"{year}_{month:02d}")
+            results["failed"].append(f"{year}")
             continue
+        
+        #Attach our defined suite to the context
+        suite = build_silver_suite(context, f"silver_weather_{year}")
 
         #Cleanup old batch definitions before creating this one
         #This is important for any re runs that ever happen
         try:
-            data_asset.batch_definitions.delete(f"silver_taxi_{year}_{month:02d}")
+            data_asset.batch_definitions.delete(f"silver_{year}")
         except Exception:
             pass
         
-        #Attach our defined suite to the context
-        suite = build_silver_suite(context, f"silver_taxi_{year}_{month:02d}")
+        #Register the batch for the suite
+        batch_definition = data_asset.add_batch_definition_whole_dataframe(
+            f"silver_{year}"
+        )
 
-        # Add cleanup before each registration by deleting old
+        # Cleanup before each registration by deleting old
         # validation definitions and checkpoints
         #This is important for any re runs that ever happen
         try:
-            context.validation_definitions.delete(f"silver_validation_{year}_{month:02d}")
+            context.validation_definitions.delete(f"silver_validation_{year}")
         except Exception:
             pass
 
         try:
-            context.checkpoints.delete(f"silver_checkpoint_{year}_{month:02d}")
+            context.checkpoints.delete(f"silver_checkpoint_{year}")
         except Exception:
             pass
-
-        #Register the batch for the suite
-        batch_definition = data_asset.add_batch_definition_whole_dataframe(
-            f"silver_taxi_{year}_{month:02d}"
-        )
 
         #Link the batch to the suite
         validation_definition = context.validation_definitions.add(
             gx.ValidationDefinition(
-                name  = f"silver_validation_{year}_{month:02d}",
+                name  = f"silver_validation_{year}",
                 data  = batch_definition,
                 suite = suite,
             )
         )
 
-        #Create checkpoints between each month batch
+        #Create checkpoints between each year batch
         checkpoint = context.checkpoints.add(
             gx.Checkpoint(
-                name                   = f"silver_checkpoint_{year}_{month:02d}",
+                name                   = f"silver_checkpoint_{year}",
                 validation_definitions = [validation_definition],
                 result_format          = {"result_format": "SUMMARY"},
             )
@@ -474,20 +499,20 @@ def main():
             batch_parameters={"dataframe": pandas_df}
         )
 
-        print_validation_report(result, year, month)
-        save_validation_report(result, year, month)
+        print_validation_report(result, year)
+        save_validation_report(result, year)
 
         if result.success:
-            results["passed"].append(f"{year}_{month:02d}")
+            results["passed"].append(f"{year}")
         else:
-            results["failed"].append(f"{year}_{month:02d}")
+            results["failed"].append(f"{year}")
 
     #Print overall summary of the validation
     print(f"\n{'=' * 55}")
     print(f"SILVER VALIDATION COMPLETE")
     print(f"{'=' * 55}")
-    print(f"  Passed : {len(results['passed'])} month/s")
-    print(f"  Failed : {len(results['failed'])} month/s")
+    print(f"  Passed : {len(results['passed'])} year/s")
+    print(f"  Failed : {len(results['failed'])} year/s")
 
     if results["failed"]:
         print(f"  Failed : {', '.join(results['failed'])}")

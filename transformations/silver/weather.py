@@ -177,11 +177,11 @@ def apply_quality_checks_and_enrich(
             END AS season_northern,             
 
             -- Column 2: Day of week
-            DAYOFWEEK(date) AS day_of_week,     
+            DAYNAME(DATE) AS day_name,     
 
             -- Column 3: Is weekend
             CASE
-                WHEN DAYOFWEEK(date) IN (1, 7) THEN TRUE ELSE FALSE
+                WHEN DAYOFWEEK(DATE) IN (1, 7) THEN TRUE ELSE FALSE
             END AS is_weekend,
 
             -- Column 4: Temp as Celsius
@@ -215,7 +215,7 @@ def apply_quality_checks_and_enrich(
             CAST(WDSP AS DOUBLE) >= 34.0                          AS is_gale,
          
             -- Column 14: Audit timestamp for when this was processed at silver layer
-            CURRENT_TIMESTAMP AS processed_at
+            CURRENT_TIMESTAMP AS processed_at,
 
         FROM cleaned
     """).fetch_arrow_table()
