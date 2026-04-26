@@ -56,4 +56,3 @@ FROM read_parquet(
     hive_partitioning = true
 )
 WHERE source_year  = {{ var('year',  2023) }}
-  AND source_month = {{ var('month', 1)    }}

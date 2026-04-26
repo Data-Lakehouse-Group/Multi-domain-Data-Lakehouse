@@ -1,19 +1,23 @@
 """
 Weather Gold Ingestion
 ======================
-Reads Gold view Parquet files that dbt built and writes them
-as Delta tables to MinIO under s3://gold/weather/.
+Reads Gold views that dbt built in the persistent DuckDB file
+and writes them as Delta tables to MinIO.
 
-The NOAA dataset is static, so tables are fully overwritten.
-No partitioning is applied.
+This file facilitates a separation of concerns where dbt only
+handles data aggregation logic while the gold_ingestion.py
+handles the write to MinIO as a Delta Table
 
-Must run AFTER: dbt build --select tag:weather
+Must run AFTER: dbt run --select tag:taxi
 
 Usage:
-    python ingestion/weather/gold_ingestion.py
+    python ingestion/weather/gold_ingestion.py                                    #Defaults to 2023
+    python ingestion/weather/gold_ingestion.py --year-start 2020 --year-end 2023  # Ingests a range
 """
 
 import os
+import argparse
+import calendar
 from deltalake import write_deltalake, DeltaTable
 import pyarrow as pa
 import pyarrow.fs as pafs
@@ -33,23 +37,33 @@ STORAGE_OPTIONS = {
 }
 
 GOLD_MODELS = {
-    "monthly_climate": {
-        "source_uri": "s3://artifacts/dbt/weather/staging/monthly_climate.parquet",
-        "write_uri": "s3://gold/weather/monthly_climate",
+    "daily_climate_summary": {
+        "view"        : "daily_climate_summary",
+        "write_uri"   : "s3://gold/taxi/daily_climate_summary",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/daily_climate_summary.parquet"
+    },
+    "monthly_climates": {
+        "view"        : "monthly_climates",
+        "write_uri"   : "s3://gold/taxi/monthly_climates",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/monthly_climates.parquet"
     },
     "station_metrics": {
-        "source_uri": "s3://artifacts/dbt/weather/staging/station_metrics.parquet",
-        "write_uri": "s3://gold/weather/station_metrics",
-    },
-    "daily_extremes": {
-        "source_uri": "s3://artifacts/dbt/weather/staging/daily_extremes.parquet",
-        "write_uri": "s3://gold/weather/daily_extremes",
-    },
+        "view"        : "station_metrics",
+        "write_uri"   : "s3://gold/taxi/station_metrics",
+        "source_uri"  : "s3://artifacts/dbt/taxi/staging/station_metrics.parquet"
+    }
 }
 
 # ---------------------------------------------------------------------------
-# HELPERS
+# HELPER FUNCTIONS
 # ---------------------------------------------------------------------------
+def table_exists(uri: str) -> bool:
+    try:
+        DeltaTable(uri, storage_options=STORAGE_OPTIONS)
+        return True
+    except Exception:
+        return False
+
 def get_s3_filesystem() -> pafs.S3FileSystem:
     return pafs.S3FileSystem(
         endpoint_override = STORAGE_OPTIONS["endpoint_url"].replace("http://", ""),
@@ -63,13 +77,24 @@ def read_parquet_from_minio(uri: str) -> pa.Table:
     path  = uri.replace("s3://", "")
     return pq.read_table(path, filesystem=fs)
 
-def ingest_model(model_name: str, model_details: dict) -> bool:
+# ---------------------------------------------------------------------------
+# CORE FUNCTIONS
+# ---------------------------------------------------------------------------
+def ingest_model(
+        model_name: str, 
+        model_details: dict, 
+        year: int
+    ) -> bool:
+
     print(f"\n  [{model_name}]")
+    print(f"  Reading view : {model_details['view']}")
     print(f"  Reading from : {model_details['source_uri']}")
     print(f"  Writing to   : {model_details['write_uri']}")
 
     try:
+        #Read parquet file into an arrow table for write to delta table
         gold_table = read_parquet_from_minio(model_details["source_uri"])
+
         row_count = gold_table.num_rows
         print(f"  Rows         : {row_count:,}")
 
@@ -77,14 +102,24 @@ def ingest_model(model_name: str, model_details: dict) -> bool:
             print(f"  [WARN] View returned 0 rows — skipping Delta write")
             return False
 
-        # Overwrite the entire Delta table (static dataset)
-        write_deltalake(
-            model_details["write_uri"],
-            gold_table,
-            mode          = "overwrite",
-            schema_mode   = "overwrite",
-            storage_options = STORAGE_OPTIONS,
-        )
+        if table_exists(model_details['write_uri']):
+            write_deltalake(
+                model_details['write_uri'],
+                gold_table,
+                mode = 'overwrite',
+                predicate=f"source_year = {year} ",
+                schema_mode="merge", 
+                storage_options= STORAGE_OPTIONS,
+            )
+        else:
+            write_deltalake(
+                model_details['write_uri'],
+                gold_table,
+                mode = 'overwrite',
+                partition_by=["source_year", "source_month"],
+                schema_mode="overwrite",
+                storage_options= STORAGE_OPTIONS,
+            )
 
         print(f"  [OK]: Successfully ingested {model_name}")
         return True
@@ -98,9 +133,20 @@ def ingest_model(model_name: str, model_details: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 def main():
-    print("Weather Gold Ingestion")
+    #Sets up the parser for the CLI call of this file
+    parser = argparse.ArgumentParser(description="Ingest NOAA GSOD weather archive files")
+    parser.add_argument("--year", type=int, default=2023, help="First year in range")
+    args = parser.parse_args()
+
+    print(f"\Weather Gold Ingestion")
+    print(f"Ingesting data aggregated from year: {args.year} ")
+
     for model_name, model_details in GOLD_MODELS.items():
-        ingest_model(model_name, model_details)
+        ingest_model(
+            model_name, 
+            model_details, 
+            args.year, 
+        )
 
 if __name__ == "__main__":
     main()
