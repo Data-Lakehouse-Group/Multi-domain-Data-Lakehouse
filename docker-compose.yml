@@ -74,6 +74,26 @@ services:
     networks:
       - lakehouse
 
+  # ── Trino Service (Needed for Superset Dashboard) ────
+  trino:
+    image: trinodb/trino:435
+    container_name: trino
+    ports:
+      - "8082:8080" #Trino listens on 8080 internnaly
+    volumes:
+      - ./dashboard/trino/etc:/etc/trino
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s # Trino takes time to start
+    networks:
+      - lakehouse
+
   # ── Superset init (set up DB and admin user) ────
   superset-init:
     build:
@@ -97,6 +117,13 @@ services:
 
         superset init;
 
+        superset set_database_uri \
+        --database-name 'Lakehouse (Trino)' \
+        --uri 'trino://admin@trino:8080/lakehouse'
+
+        echo 'Setting database perms...';
+        python3 /app/superset_db_config.py
+
         echo 'Importing dashboards...';
 
         shopt -s nullglob;
@@ -112,8 +139,9 @@ services:
       SUPERSET_SECRET_KEY: supersetSecretKey123
     volumes:
       - ./dashboard/superset/superset_config.py:/app/superset_config.py
+      - ./dashboard/superset/superset_db_config.py:/app/superset_db_config.py
       - ./dashboard/exports:/app/exports
-      - ./dashboard/superset/duckdb_setup.py:/app/duckdb_setup.py
+      - ./dashboard/trino/etc:/app/trino/etc
       - superset_home:/app/superset_home
     networks:
       - lakehouse
@@ -128,7 +156,7 @@ services:
       - "8088:8088"
     command: >
       bash -c "
-        python3 /app/duckdb_setup.py &&
+        python3 /app/trino_setup.py &&
         /usr/bin/run-server.sh
       "
     environment:
@@ -139,14 +167,16 @@ services:
       MINIO_SECRET_KEY: minioadmin
     volumes:
       - ./dashboard/superset/superset_config.py:/app/superset_config.py
-      - ./dashboard/exports:/app/exports
-      - ./dashboard/superset/duckdb_setup.py:/app/duckdb_setup.py
+      - ./dashboard/superset/trino_setup.py:/app/trino_setup.py
+      - ./dashboard/trino/etc:/app/trino/etc
       - superset_home:/app/superset_home
     depends_on:
       superset-init:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
+      trino:
+        condition: service_healthy
     networks:
       - lakehouse
 
