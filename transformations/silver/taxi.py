@@ -202,7 +202,7 @@ def apply_quality_checks_and_enrich(
 
             -- Column 6: Is Weekend
             CASE
-                WHEN pickup_day_of_week IN (1, 0) THEN true
+                WHEN pickup_day_of_week IN (0, 6) THEN true
                 ELSE false
             END AS is_weekend,
 
