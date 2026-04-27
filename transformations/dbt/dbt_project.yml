@@ -18,10 +18,6 @@ models:
       +materialized: view
       taxi:
         +tags: ["taxi", "staging"]
-      github_archive:
-        +tags: ["github", "staging"]
-      retail:
-        +tags: ["retail", "staging"]
       weather:
         +tags: ["weather", "staging"]
 
@@ -29,10 +25,6 @@ models:
       +materialized: view
       taxi:
         +tags: ["taxi", "intermediate"]
-      github_archive:
-        +tags: ["github", "intermediate"]
-      retail:
-        +tags: ["retail", "intermediate"]
       weather:
         +tags: ["weather", "intermediate"]
 
@@ -42,12 +34,6 @@ models:
       taxi:
         +location_root: "s3://artifacts/dbt/taxi/staging"
         +tags: ["taxi", "gold"]
-      github_archive:
-        +location_root: "s3://artifacts/dbt/github_archive/staging"
-        +tags: ["github", "gold"]
-      retail:
-        +location_root: "s3://artifacts/dbt/retail/staging"
-        +tags: ["retail", "gold"]
       weather:
         +location_root: "s3://artifacts/dbt/weather/staging"
         +tags: ["weather", "gold"]
