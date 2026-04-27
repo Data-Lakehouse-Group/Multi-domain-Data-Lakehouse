@@ -1,7 +1,7 @@
 import os
 
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "fallback-secret-change-me")
-SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db"
+SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db?check_same_thread=False"
 
 PREVENT_UNSAFE_DB_CONNECTIONS = False
 

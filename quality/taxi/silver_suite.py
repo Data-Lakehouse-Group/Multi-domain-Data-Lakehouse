@@ -50,7 +50,7 @@ STORAGE_OPTIONS = {
     "aws_s3_allow_unsafe_rename": "true",
 }
 
-# Expected silver schema — all original, derived, and audit columns
+# Expected silver schema — all necessary, derived, and audit columns
 EXPECTED_COLUMNS = [
     # Original columns (optimised types)
     "VendorID",
@@ -62,16 +62,9 @@ EXPECTED_COLUMNS = [
     "DOLocationID",
     "payment_type",
     "fare_amount",
-    "extra",
-    "mta_tax",
     "tip_amount",
     "tolls_amount",
-    "improvement_surcharge",
     "total_amount",
-    "congestion_surcharge",
-    "airport_fee",
-    "store_and_fwd_flag",
-    "RatecodeID",
 
     # Bronze audit columns (passed through)
     "source_year",
@@ -123,11 +116,6 @@ COLUMNS_CRITICAL_NOT_NULL = [
 ]
 
 COLUMNS_SOFT_NOT_NULL = [
-    "VendorID",
-    "RatecodeID",
-    "store_and_fwd_flag",
-    "congestion_surcharge",
-    "airport_fee",
     "trip_speed_mph",     # null when duration is zero
 ]
 

@@ -20,7 +20,7 @@ with app.app_context():
         existing.expose_in_sqllab  = True
         existing.allow_ctas        = True
         existing.allow_cvas        = True
-        existing.allow_dml         = False
+        existing.allow_dml         = True
         existing.extra             = '{"cost_estimate_enabled": false, "disable_data_preview": false, "expand_rows": false}'
         db.session.commit()
         print('✅ Trino database connection updated')
@@ -31,7 +31,7 @@ with app.app_context():
             expose_in_sqllab = True,
             allow_ctas       = True,
             allow_cvas       = True,
-            allow_dml        = False,
+            allow_dml        = True,
             extra            = '{"cost_estimate_enabled": false, "disable_data_preview": false, "expand_rows": false}'
         )
         db.session.add(database)
