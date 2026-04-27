@@ -9,6 +9,7 @@
 
 SELECT
     payment_type,
+    payment_method,
     source_year,
     source_month,
 
@@ -47,5 +48,6 @@ FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY
     payment_type,
     source_year,
-    source_month
+    source_month,
+    payment_method,
 ORDER BY payment_type

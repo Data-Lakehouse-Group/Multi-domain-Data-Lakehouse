@@ -8,6 +8,7 @@
 
 
 SELECT 
+    pickup_borough,
     pickup_zone,
     pickup_service_zone,
     dropoff_borough,
@@ -55,6 +56,7 @@ FROM {{ ref('taxi_data_with_zones') }}
 GROUP BY 
     source_year,
     source_month,
+    pickup_borough,
     pickup_zone,
     pickup_service_zone,
     dropoff_borough,
