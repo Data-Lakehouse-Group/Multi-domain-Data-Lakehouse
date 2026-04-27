@@ -56,6 +56,8 @@ create_dbt_connection()
 # ---------------------------------------------------------------------------
 with DAG(
     dag_id          = "taxi_pipeline",
+    max_active_runs =1,              #Needed so that gold layer works in sync and temp files arent over written
+    max_active_tasks=1,
     description     = "NYC Taxi Bronze → Silver → Gold pipeline (With Validation and Download)",
     default_args    = default_args,
     start_date      = datetime(2023, 1, 1),

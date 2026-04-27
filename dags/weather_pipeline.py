@@ -54,9 +54,11 @@ create_dbt_connection()
 # ---------------------------------------------------------------------------
 with DAG(
     dag_id          = "weather_pipeline",
+    max_active_runs =1,              #Needed so that gold layer works in sync and temp files arent over written
+    max_active_tasks=1,
     description     = "Weather Bronze → Silver → Gold pipeline (With Validation and Download)",
     default_args    = default_args,
-    start_date      = datetime(2020, 1, 1),
+    start_date      = datetime(2019, 1, 1),
     end_date        = datetime(2020, 1, 1),
     schedule        = "0 0 1 2 *",   # 1st of every month at midnight
     catchup         = True,          # backfill all months from start_date
