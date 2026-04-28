@@ -25,7 +25,7 @@ from airflow.models import Connection
 default_args = {
     "owner"           : "lakehouse",
     "retries"          : 2,           #Retry until successs in prod
-    "retry_delay"      : timedelta(minutes=1), #Retries everyday in prod
+    "retry_delay"      : timedelta(seconds=1), #Retries everyday in prod
     "email_on_failure": False,
 }
 
@@ -60,8 +60,8 @@ with DAG(
     max_active_tasks=1,
     description     = "NYC Taxi Bronze → Silver → Gold pipeline (With Validation and Download)",
     default_args    = default_args,
-    start_date      = datetime(2023, 1, 1),
-    end_date        = datetime(2023, 1, 1),
+    start_date      = datetime(2021, 1, 1),
+    end_date        = datetime(2026, 1, 1),
     schedule        = "0 0 1 * *",   # 1st of every month at midnight
     catchup         = True,          # backfill all months from start_date
     tags            = ["taxi", "lakehouse"],

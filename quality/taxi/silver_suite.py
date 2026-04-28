@@ -87,8 +87,8 @@ EXPECTED_COLUMNS = [
 ]
 
 # Row count bounds — silver will always be <= bronze due to cleaning
-MIN_ROWS_PER_MONTH = 80_000
-MAX_ROWS_PER_MONTH = 6_000_000
+MIN_ROWS_PER_MONTH = 180_000
+MAX_ROWS_PER_MONTH = 5_800_000
 
 # Null thresholds
 EXPECTED_NON_NULL_PERCENTAGE        = 1  # critical columns

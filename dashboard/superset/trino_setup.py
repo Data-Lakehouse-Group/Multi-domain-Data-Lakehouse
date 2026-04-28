@@ -27,7 +27,6 @@ GOLD_TABLES = [
         ("taxi_zone_performance",    "s3://gold/taxi/zone_performance/"),
         ("taxi_hourly_summary",      "s3://gold/taxi/hourly_summary/"),
         ("taxi_payment_summary",     "s3://gold/taxi/payment_summary/"),
-        ("taxi_borough_summary",     "s3://gold/taxi/borough_summary/"),
         ("taxi_individual_day_summary",     "s3://gold/taxi/individual_day_summary/"),
     ]
 

@@ -64,12 +64,7 @@ GOLD_MODELS = {
         "view"        : "payment_summary",
         "write_uri"   : "s3://gold/taxi/payment_summary",
         "source_uri"  : "s3://artifacts/dbt/taxi/staging/payment_summary.parquet"
-    },
-    "borough_summary": {
-        "view"        : "borough_summary",
-        "write_uri"   : "s3://gold/taxi/borough_summary",
-        "source_uri"  : "s3://artifacts/dbt/taxi/staging/borough_summary.parquet"
-    },
+    }
 }
 
 # ---------------------------------------------------------------------------
