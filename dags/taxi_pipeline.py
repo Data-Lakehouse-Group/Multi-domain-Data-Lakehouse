@@ -62,7 +62,7 @@ with DAG(
     default_args    = default_args,
     start_date      = datetime(2021, 1, 1),
     end_date        = datetime(2026, 1, 1),
-    schedule        = "0 0 1 * *",   # 1st of every month at midnight
+    schedule        = "0 0 28 * *",   # 28th of every month at midnight
     catchup         = True,          # backfill all months from start_date
     tags            = ["taxi", "lakehouse"],
 ) as dag:

@@ -123,7 +123,7 @@ def apply_quality_checks_and_enrich(
                 -- Rule 4: Physical plausibility
                 AND CAST(TEMP  AS DOUBLE) BETWEEN -129 AND 135
                 AND CAST(WDSP  AS DOUBLE) BETWEEN 0   AND 200
-                AND CAST(PRCP  AS DOUBLE) BETWEEN 0   AND 30
+                AND CAST(PRCP  AS DOUBLE) BETWEEN 0   AND 6
                 AND CAST(VISIB AS DOUBLE) BETWEEN 0   AND 999
 
                 -- Rule 5: Cross-field consistency

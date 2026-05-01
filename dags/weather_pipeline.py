@@ -60,7 +60,7 @@ with DAG(
     default_args    = default_args,
     start_date      = datetime(2020, 1, 1),
     end_date        = datetime(2025, 1, 1),
-    schedule        = "0 0 1 2 *",   # 1st of every month at midnight
+    schedule        = "0 0 1 2 *",   # 1st of february every year
     catchup         = True,          # backfill all months from start_date
     tags            = ["weather", "lakehouse"],
 ) as dag:
